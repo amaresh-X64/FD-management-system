@@ -11,7 +11,7 @@
     <relativePath/>
   </parent>
 
-  <groupId>com.fdshield</groupId>
+  <groupId>com.fdmanagement</groupId>
   <artifactId>spring-service</artifactId>
   <version>0.0.1-SNAPSHOT</version>
   <name>spring-service</name>

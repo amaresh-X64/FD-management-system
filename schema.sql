@@ -1,3 +1,6 @@
+-- FD Shield — Neon PostgreSQL Schema
+-- Run this once on your Neon database before starting the services
+
 CREATE TABLE IF NOT EXISTS users (
     id               BIGSERIAL PRIMARY KEY,
     name             VARCHAR(255) NOT NULL,
@@ -43,3 +46,7 @@ CREATE TABLE IF NOT EXISTS user_financial_profile (
 CREATE INDEX IF NOT EXISTS idx_fd_user_id     ON fixed_deposits(user_id);
 CREATE INDEX IF NOT EXISTS idx_fd_status      ON fixed_deposits(status);
 CREATE INDEX IF NOT EXISTS idx_wlog_fd_id     ON withdrawal_logs(fd_id);
+
+ALTER TABLE user_financial_profile
+    ADD COLUMN IF NOT EXISTS concentration_risk   NUMERIC(5, 2),
+    ADD COLUMN IF NOT EXISTS ladder_score         NUMERIC(5, 2);
