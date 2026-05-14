@@ -273,7 +273,13 @@ with st.sidebar:
 if page == "📊 Portfolio Dashboard":
     st.markdown('<p class="section-header">Portfolio Dashboard</p>', unsafe_allow_html=True)
 
-    user_id = st.number_input("User ID", min_value=1, value=1, step=1, key="port_uid")
+    user_id = st.number_input(
+    "User ID",
+    min_value=1,
+    value=st.session_state.get("last_user_id", 1),
+    step=1,
+    key="port_uid"
+)
 
     if st.button("Load Portfolio", type="primary", use_container_width=True):
         data, status = api_get(f"/users/{user_id}/portfolio")
