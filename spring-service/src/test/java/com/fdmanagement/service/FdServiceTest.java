@@ -5,7 +5,6 @@ import com.fdmanagement.client.GoRiskClient;
 import com.fdmanagement.dto.*;
 import com.fdmanagement.entity.*;
 import com.fdmanagement.repository.*;
-import com.fdmanagement.service.FdService;
 
 import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;

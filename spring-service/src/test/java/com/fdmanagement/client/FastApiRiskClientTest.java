@@ -1,7 +1,4 @@
 package com.fdmanagement.client;
-
-import com.fdmanagement.client.FastApiClient;
-import com.fdmanagement.client.GoRiskClient;
 import com.fdmanagement.entity.FixedDeposit;
 import com.fdmanagement.entity.User;
 import org.junit.jupiter.api.BeforeEach;

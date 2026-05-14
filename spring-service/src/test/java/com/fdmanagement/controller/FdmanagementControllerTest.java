@@ -2,7 +2,6 @@ package com.fdmanagement.controller;
 
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
-import com.fdmanagement.controller.fdmanagementController;
 import com.fdmanagement.dto.*;
 import com.fdmanagement.service.FdService;
 import com.fdmanagement.service.UserService;
