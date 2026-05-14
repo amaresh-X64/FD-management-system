@@ -1,24 +1,25 @@
 package services
 
 import (
-	"fd-shield/go-risk-engine/models"
+	"fd-management/go-risk-engine/models"
 	"fmt"
 	"math"
 	"sort"
 	"time"
 )
-func AnalyzeRisk(req models.RiskRequest) models.RiskResult {
-	liquidityCh      := make(chan float64, 1)
-	spreadCh         := make(chan float64, 1)
-	penaltyCh        := make(chan float64, 1)
-	concentrationCh  := make(chan float64, 1)
-	ladderCh         := make(chan float64, 1)
 
-	go func() { liquidityCh     <- calcLiquidityScore(req) }()
-	go func() { spreadCh        <- calcMaturitySpreadScore(req) }()
-	go func() { penaltyCh       <- calcPenaltyExposure(req) }()
+func AnalyzeRisk(req models.RiskRequest) models.RiskResult {
+	liquidityCh := make(chan float64, 1)
+	spreadCh := make(chan float64, 1)
+	penaltyCh := make(chan float64, 1)
+	concentrationCh := make(chan float64, 1)
+	ladderCh := make(chan float64, 1)
+
+	go func() { liquidityCh <- calcLiquidityScore(req) }()
+	go func() { spreadCh <- calcMaturitySpreadScore(req) }()
+	go func() { penaltyCh <- calcPenaltyExposure(req) }()
 	go func() { concentrationCh <- calcConcentrationRisk(req) }()
-	go func() { ladderCh        <- calcLadderScore(req) }()
+	go func() { ladderCh <- calcLadderScore(req) }()
 
 	return models.RiskResult{
 		LiquidityScore:      <-liquidityCh,
@@ -32,23 +33,23 @@ func calcLiquidityScore(req models.RiskRequest) float64 {
 	if len(req.Fds) == 0 || req.MonthlyExpenses == 0 {
 		return 0
 	}
- 
+
 	var shortTermPrincipal float64
 	for _, fd := range req.Fds {
 		if fd.FdType == "SHORT_TERM" {
 			shortTermPrincipal += fd.Principal
 		}
 	}
- 
+
 	monthsCovered := shortTermPrincipal / req.MonthlyExpenses
 	base := math.Min(monthsCovered/6.0*100, 100)
- 
+
 	savingsBonus := 0.0
 	if req.MonthlyIncome > 0 {
 		savingsRate := (req.MonthlyIncome - req.MonthlyExpenses) / req.MonthlyIncome
 		savingsBonus = math.Min(savingsRate*20, 10)
 	}
- 
+
 	return round(math.Min(base+savingsBonus, 100), 2)
 }
 func calcMaturitySpreadScore(req models.RiskRequest) float64 {
@@ -56,10 +57,9 @@ func calcMaturitySpreadScore(req models.RiskRequest) float64 {
 		return 0
 	}
 	if len(req.Fds) == 1 {
-		return 20 // single FD, no ladder
+		return 20
 	}
 
-	// Parse and sort maturity dates
 	dates := []time.Time{}
 	for _, fd := range req.Fds {
 		t, err := time.Parse("2006-01-02", fd.MaturityDate)
@@ -203,27 +203,23 @@ func calcLadderScore(req models.RiskRequest) float64 {
 	}
 	sort.Slice(dates, func(i, j int) bool { return dates[i].Before(dates[j]) })
 
-	// a) Coverage score: span from earliest to latest maturity
 	spanDays := dates[len(dates)-1].Sub(dates[0]).Hours() / 24
 	spanYears := spanDays / 365.0
 
-	// Ideal span: 3–5 years = 100, < 1 year = 20, > 7 years = 60 (too long)
 	coverageScore := 0.0
 	switch {
 	case spanYears < 1:
 		coverageScore = 20
 	case spanYears < 3:
-		coverageScore = 20 + (spanYears-1)/2*60 // ramp from 20→80
+		coverageScore = 20 + (spanYears-1)/2*60
 	case spanYears <= 5:
 		coverageScore = 100
 	case spanYears <= 7:
-		coverageScore = 100 - (spanYears-5)/2*20 // ramp from 100→80
+		coverageScore = 100 - (spanYears-5)/2*20
 	default:
 		coverageScore = 60
 	}
 
-	// b) Regularity score: how evenly spaced are the maturities?
-	// Use same CV approach as spread, but within ladder context
 	gaps := []float64{}
 	for i := 1; i < len(dates); i++ {
 		gaps = append(gaps, dates[i].Sub(dates[i-1]).Hours()/24)
@@ -246,7 +242,6 @@ func calcLadderScore(req models.RiskRequest) float64 {
 		regularityScore = math.Max(100-cv*50, 10)
 	}
 
-	// c) Rung quality: 3–5 FDs is the industry sweet spot
 	rungScore := 0.0
 	n := len(req.Fds)
 	switch {
@@ -259,14 +254,13 @@ func calcLadderScore(req models.RiskRequest) float64 {
 	case n <= 7:
 		rungScore = 80
 	default:
-		rungScore = 60 // too many FDs becomes hard to track
+		rungScore = 60
 	}
 
 	score := coverageScore*0.40 + regularityScore*0.40 + rungScore*0.20
 	return round(math.Min(score, 100), 2)
 }
 
-// ── Helpers ───────────────────────────────────────────────────────────────
 func quarterKey(t time.Time) string {
 	q := (int(t.Month())-1)/3 + 1
 	return fmt.Sprintf("%d-Q%d", t.Year(), q)

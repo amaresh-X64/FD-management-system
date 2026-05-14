@@ -2,29 +2,23 @@ package com.fdshield.service;
 
 import com.fdshield.client.FastApiClient;
 import com.fdshield.client.GoRiskClient;
-import com.fdshield.dto.CreateFdRequest;
-import com.fdshield.dto.FdResponse;
-import com.fdshield.dto.WithdrawResponse;
-import com.fdshield.entity.FixedDeposit;
-import com.fdshield.entity.User;
-import com.fdshield.entity.WithdrawalLog;
-import com.fdshield.repository.FixedDepositRepository;
-import com.fdshield.repository.UserFinancialProfileRepository;
-import com.fdshield.repository.UserRepository;
-import com.fdshield.repository.WithdrawalLogRepository;
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
+import com.fdshield.dto.*;
+import com.fdshield.entity.*;
+import com.fdshield.repository.*;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
+import org.junit.jupiter.params.provider.*;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+
 import java.math.BigDecimal;
 import java.time.LocalDate;
+import java.util.List;
 import java.util.Optional;
 import java.util.stream.Stream;
+
 import static org.assertj.core.api.Assertions.*;
 import static org.mockito.ArgumentMatchers.*;
 import static org.mockito.Mockito.*;
@@ -32,266 +26,285 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class FdServiceTest {
 
-    @Mock
-    private FixedDepositRepository fdRepository;
-    @Mock
-    private UserRepository userRepository;
-    @Mock
-    private UserFinancialProfileRepository profileRepository;
-    @Mock
-    private WithdrawalLogRepository withdrawalLogRepository;
-    @Mock
-    private GoRiskClient goRiskClient;
-    @Mock
-    private FastApiClient fastApiClient;
+    @Mock private FixedDepositRepository fdRepository;
+    @Mock private UserRepository userRepository;
+    @Mock private UserFinancialProfileRepository profileRepository;
+    @Mock private WithdrawalLogRepository withdrawalLogRepository;
+    @Mock private GoRiskClient goRiskClient;
+    @Mock private FastApiClient fastApiClient;
 
-    @InjectMocks
-    private FdService fdService;
+    @InjectMocks private FdService fdService;
 
     private User testUser;
 
     @BeforeEach
     void setUp() {
-        testUser = User.builder()
-                .id(1L)
-                .name("Arjun Kumar")
+        testUser = User.builder().id(1L).name("Arjun Kumar")
                 .email("arjun@example.com")
                 .monthlyIncome(new BigDecimal("80000"))
-                .monthlyExpenses(new BigDecimal("40000"))
-                .build();
+                .monthlyExpenses(new BigDecimal("40000")).build();
     }
 
-    static Stream<Arguments> maturityAmountCases() {
+    // ── Shared helpers ────────────────────────────────────────────────────
+
+    private FixedDeposit savedFd(FixedDeposit fd) {
+        return FixedDeposit.builder().id(1L).user(testUser)
+                .principal(fd.getPrincipal()).interestRate(fd.getInterestRate())
+                .durationMonths(fd.getDurationMonths()).maturityAmount(fd.getMaturityAmount())
+                .startDate(fd.getStartDate()).maturityDate(fd.getMaturityDate())
+                .fdType(fd.getFdType()).status(fd.getStatus()).build();
+    }
+
+    private FixedDeposit activeFd(BigDecimal principal, String type,
+                                   LocalDate start, LocalDate maturity) {
+        return FixedDeposit.builder().id(1L).user(testUser)
+                .principal(principal).interestRate(new BigDecimal("7.5"))
+                .maturityAmount(new BigDecimal("215000"))
+                .durationMonths(24).startDate(start).maturityDate(maturity)
+                .fdType(type).status("ACTIVE").build();
+    }
+
+    // ── 1. Compound Interest ──────────────────────────────────────────────
+
+    static Stream<Arguments> maturityCases() {
         return Stream.of(
-                Arguments.of(
-                        "P=100000, r=7.5%, t=12 months → 107500",
-                        new BigDecimal("100000"), new BigDecimal("7.5"), 12,
-                        new BigDecimal("107500.00"), new BigDecimal("107500.00")),
-                Arguments.of(
-                        "P=100000, r=7.5%, t=24 months → 115562.50",
-                        new BigDecimal("100000"), new BigDecimal("7.5"), 24,
-                        new BigDecimal("115562.50"), new BigDecimal("115562.50")),
-                Arguments.of(
-                        "Zero interest rate returns principal unchanged",
-                        new BigDecimal("100000"), BigDecimal.ZERO, 12,
-                        new BigDecimal("100000.00"), new BigDecimal("100000.00")),
-                Arguments.of(
-                        "Partial year: 6 months computes correctly (range 103900–103950)",
-                        new BigDecimal("100000"), new BigDecimal("8.0"), 6,
-                        new BigDecimal("103900.00"), new BigDecimal("103950.00")));
+            Arguments.of("1 year 7.5%",  "100000", "7.5",  12, "107500.00",  "107500.00"),
+            Arguments.of("2 years 7.5%", "100000", "7.5",  24, "115562.50",  "115562.50"),
+            Arguments.of("0% rate",       "100000", "0",   12, "100000.00",  "100000.00"),
+            Arguments.of("6 months 8%",   "100000", "8.0",  6, "103900.00",  "103950.00")
+        );
     }
 
     @ParameterizedTest(name = "{0}")
-    @MethodSource("maturityAmountCases")
+    @MethodSource("maturityCases")
     @DisplayName("calculateMaturityAmount – compound interest formula")
-    void calculateMaturityAmount(
-            String description,
-            BigDecimal principal, BigDecimal rate, int months,
-            BigDecimal expectedMin, BigDecimal expectedMax) {
-
-        BigDecimal result = fdService.calculateMaturityAmount(principal, rate, months);
-
-        if (expectedMin.compareTo(expectedMax) == 0) {
-            assertThat(result).isEqualByComparingTo(expectedMin);
-        } else {
-            assertThat(result).isBetween(expectedMin, expectedMax);
-        }
+    void calculateMaturityAmount(String label, String p, String r, int months,
+                                  String min, String max) {
+        BigDecimal result = fdService.calculateMaturityAmount(
+                new BigDecimal(p), new BigDecimal(r), months);
+        if (min.equals(max))
+            assertThat(result).isEqualByComparingTo(new BigDecimal(min));
+        else
+            assertThat(result).isBetween(new BigDecimal(min), new BigDecimal(max));
     }
+
+    // ── 2. FD Type & Maturity Date ────────────────────────────────────────
 
     static Stream<Arguments> fdTypeCases() {
         return Stream.of(
-                Arguments.of("12-month FD should be SHORT_TERM", 12, "SHORT_TERM"),
-                Arguments.of("13-month FD should be LONG_TERM", 13, "LONG_TERM"));
+            Arguments.of("12 months → SHORT_TERM", 12, "SHORT_TERM"),
+            Arguments.of("13 months → LONG_TERM",  13, "LONG_TERM")
+        );
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("fdTypeCases")
-    @DisplayName("saveFd – FD type assignment by duration")
-    void createFd_fdTypeAssignment(String description, int durationMonths, String expectedFdType) {
+    @DisplayName("saveFd – FD type assigned by duration")
+    void saveFd_fdType(String label, int months, String expected) {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(fdRepository.save(any())).thenAnswer(inv -> {
-            FixedDeposit fd = inv.getArgument(0);
-            return FixedDeposit.builder()
-                    .id(1L).user(testUser)
-                    .principal(fd.getPrincipal()).interestRate(fd.getInterestRate())
-                    .durationMonths(fd.getDurationMonths()).maturityAmount(fd.getMaturityAmount())
-                    .startDate(fd.getStartDate()).maturityDate(fd.getMaturityDate())
-                    .fdType(fd.getFdType()).status(fd.getStatus()).build();
-        });
+        when(fdRepository.save(any())).thenAnswer(inv -> savedFd(inv.getArgument(0)));
 
-        CreateFdRequest req = new CreateFdRequest(1L, new BigDecimal("200000"),
-                new BigDecimal("7.5"), durationMonths, LocalDate.of(2025, 1, 1));
+        FdResponse r = fdService.saveFd(new CreateFdRequest(
+                1L, new BigDecimal("200000"), new BigDecimal("7.5"),
+                months, LocalDate.of(2025, 1, 1)));
 
-        FdResponse response = fdService.saveFd(req);
-
-        assertThat(response.fdType).isEqualTo(expectedFdType);
+        assertThat(r.fdType).isEqualTo(expected);
     }
 
-    static Stream<Arguments> maturityDateCases() {
-        return Stream.of(
-                Arguments.of(
-                        "start=2025-01-01, 24 months → maturity=2027-01-01",
-                        LocalDate.of(2025, 1, 1), 24, LocalDate.of(2027, 1, 1)));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("maturityDateCases")
-    @DisplayName("saveFd – maturity date = start date + duration months")
-    void createFd_maturityDate(String description, LocalDate startDate,
-            int durationMonths, LocalDate expectedMaturityDate) {
+    @Test
+    @DisplayName("saveFd – maturity date = start + duration months")
+    void saveFd_maturityDate() {
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
-        when(fdRepository.save(any())).thenAnswer(inv -> {
-            FixedDeposit fd = inv.getArgument(0);
-            return FixedDeposit.builder()
-                    .id(1L).user(testUser)
-                    .principal(fd.getPrincipal()).interestRate(fd.getInterestRate())
-                    .durationMonths(fd.getDurationMonths()).maturityAmount(fd.getMaturityAmount())
-                    .startDate(fd.getStartDate()).maturityDate(fd.getMaturityDate())
-                    .fdType(fd.getFdType()).status(fd.getStatus()).build();
-        });
+        when(fdRepository.save(any())).thenAnswer(inv -> savedFd(inv.getArgument(0)));
 
-        CreateFdRequest req = new CreateFdRequest(1L, new BigDecimal("200000"),
-                new BigDecimal("7.5"), durationMonths, startDate);
+        FdResponse r = fdService.saveFd(new CreateFdRequest(
+                1L, new BigDecimal("200000"), new BigDecimal("7.5"),
+                24, LocalDate.of(2025, 1, 1)));
 
-        FdResponse response = fdService.saveFd(req);
-
-        assertThat(response.maturityDate).isEqualTo(expectedMaturityDate);
+        assertThat(r.maturityDate).isEqualTo(LocalDate.of(2027, 1, 1));
     }
 
-    static Stream<Arguments> userNotFoundCases() {
-        return Stream.of(
-                Arguments.of(
-                        "non-existent userId=99 throws RuntimeException with message 'User not found: 99'",
-                        99L, "User not found: 99"));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("userNotFoundCases")
-    @DisplayName("saveFd – non-existent user throws RuntimeException")
-    void createFd_userNotFound(String description, long userId, String expectedMessage) {
-        when(userRepository.findById(userId)).thenReturn(Optional.empty());
-
-        CreateFdRequest req = new CreateFdRequest(userId, new BigDecimal("200000"),
-                new BigDecimal("7.5"), 12, LocalDate.of(2025, 1, 1));
-
-        assertThatThrownBy(() -> fdService.saveFd(req))
+    @Test
+    @DisplayName("saveFd – unknown user throws RuntimeException")
+    void saveFd_userNotFound() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> fdService.saveFd(new CreateFdRequest(
+                99L, new BigDecimal("200000"), new BigDecimal("7.5"),
+                12, LocalDate.of(2025, 1, 1))))
                 .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining(expectedMessage);
+                .hasMessageContaining("User not found: 99");
     }
 
-    static Stream<Arguments> withdrawalCalculationCases() {
-        return Stream.of(
-                Arguments.of(
-                        "Penalty = 1% of principal (200000 → 2000)",
-                        new BigDecimal("200000"), new BigDecimal("7.5"), 24,
-                        LocalDate.of(2024, 1, 1), LocalDate.of(2026, 1, 1), "LONG_TERM",
-                        new BigDecimal("2000.00")),
-                Arguments.of(
-                        "Net payout = principal + interest - penalty (100000, 7.5%, 12 months)",
-                        new BigDecimal("100000"), new BigDecimal("7.5"), 12,
-                        LocalDate.now().minusMonths(6), LocalDate.now().plusMonths(6), "SHORT_TERM",
-                        null // net payout is validated relationally, not by a fixed value
-                ));
-    }
+    // ── 3. Withdrawal Calculations ────────────────────────────────────────
 
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("withdrawalCalculationCases")
-    @DisplayName("saveWithdrawal – penalty and net payout calculations")
-    void withdrawFd_calculations(
-            String description,
-            BigDecimal principal, BigDecimal rate, int months,
-            LocalDate startDate, LocalDate maturityDate, String fdType,
-            BigDecimal expectedPenalty) {
-
-        FixedDeposit fd = FixedDeposit.builder()
-                .id(1L).user(testUser)
-                .principal(principal).interestRate(rate)
-                .durationMonths(months)
-                .startDate(startDate).maturityDate(maturityDate)
-                .fdType(fdType).status("ACTIVE")
-                .build();
-
+    @Test
+    @DisplayName("saveWithdrawal – penalty = 1% of principal")
+    void withdrawal_penalty() {
+        FixedDeposit fd = activeFd(new BigDecimal("200000"), "LONG_TERM",
+                LocalDate.of(2024, 1, 1), LocalDate.of(2026, 1, 1));
         when(fdRepository.findById(1L)).thenReturn(Optional.of(fd));
         when(fdRepository.save(any())).thenReturn(fd);
         when(withdrawalLogRepository.save(any())).thenReturn(new WithdrawalLog());
 
-        WithdrawResponse response = fdService.saveWithdrawal(1L);
-
-        if (expectedPenalty != null) {
-            assertThat(response.penaltyAmount).isEqualByComparingTo(expectedPenalty);
-        } else {
-            BigDecimal expected = response.principal
-                    .add(response.interestEarned)
-                    .subtract(response.penaltyAmount);
-            assertThat(response.netPayout).isEqualByComparingTo(expected);
-        }
+        assertThat(fdService.saveWithdrawal(1L).penaltyAmount)
+                .isEqualByComparingTo(new BigDecimal("2000.00"));
     }
 
-    static Stream<Arguments> withdrawalExceptionCases() {
-        return Stream.of(
-                Arguments.of(
-                        "WITHDRAWN status throws RuntimeException with 'FD is not active'",
-                        "WITHDRAWN", "FD is not active"));
-    }
-
-    @ParameterizedTest(name = "{0}")
-    @MethodSource("withdrawalExceptionCases")
-    @DisplayName("saveWithdrawal – non-active FD throws RuntimeException")
-    void withdrawFd_nonActiveFd_throwsException(
-            String description, String fdStatus, String expectedMessage) {
-
-        FixedDeposit fd = FixedDeposit.builder()
-                .id(1L).user(testUser)
-                .principal(new BigDecimal("100000"))
-                .interestRate(new BigDecimal("7.5"))
-                .durationMonths(12)
-                .startDate(LocalDate.of(2024, 1, 1))
-                .maturityDate(LocalDate.of(2025, 1, 1))
-                .fdType("SHORT_TERM").status(fdStatus)
-                .build();
-
+    @Test
+    @DisplayName("saveWithdrawal – net payout = principal + interest - penalty")
+    void withdrawal_netPayout() {
+        FixedDeposit fd = activeFd(new BigDecimal("100000"), "SHORT_TERM",
+                LocalDate.now().minusMonths(6), LocalDate.now().plusMonths(6));
         when(fdRepository.findById(1L)).thenReturn(Optional.of(fd));
+        when(fdRepository.save(any())).thenReturn(fd);
+        when(withdrawalLogRepository.save(any())).thenReturn(new WithdrawalLog());
 
-        assertThatThrownBy(() -> fdService.saveWithdrawal(1L))
-                .isInstanceOf(RuntimeException.class)
-                .hasMessageContaining(expectedMessage);
+        WithdrawResponse r = fdService.saveWithdrawal(1L);
+        assertThat(r.netPayout)
+                .isEqualByComparingTo(r.principal.add(r.interestEarned).subtract(r.penaltyAmount));
     }
+
+    // ── 4. Withdrawal Side Effects ────────────────────────────────────────
 
     static Stream<Arguments> withdrawalSideEffectCases() {
         return Stream.of(
-                Arguments.of(
-                        "Withdrawal sets FD status to WITHDRAWN",
-                        new BigDecimal("200000"), "LONG_TERM", "WITHDRAWN", "PREMATURE"),
-                Arguments.of(
-                        "Withdrawal logs a PREMATURE withdrawal record",
-                        new BigDecimal("200000"), "LONG_TERM", "WITHDRAWN", "PREMATURE"));
+            Arguments.of("Sets status to WITHDRAWN", "WITHDRAWN"),
+            Arguments.of("Logs PREMATURE withdrawal type", "PREMATURE")
+        );
     }
 
     @ParameterizedTest(name = "{0}")
     @MethodSource("withdrawalSideEffectCases")
-    @DisplayName("saveWithdrawal – status update and withdrawal log side effects")
-    void withdrawFd_sideEffects(
-            String description,
-            BigDecimal principal, String fdType,
-            String expectedStatus, String expectedWithdrawalType) {
-
-        FixedDeposit fd = FixedDeposit.builder()
-                .id(1L).user(testUser)
-                .principal(principal)
-                .interestRate(new BigDecimal("7.5"))
-                .durationMonths(24)
-                .startDate(LocalDate.of(2024, 1, 1))
-                .maturityDate(LocalDate.of(2026, 1, 1))
-                .fdType(fdType).status("ACTIVE")
-                .build();
-
+    @DisplayName("saveWithdrawal – status and log side effects")
+    void withdrawal_sideEffects(String label, String expected) {
+        FixedDeposit fd = activeFd(new BigDecimal("200000"), "LONG_TERM",
+                LocalDate.of(2024, 1, 1), LocalDate.of(2026, 1, 1));
         when(fdRepository.findById(1L)).thenReturn(Optional.of(fd));
         when(fdRepository.save(any())).thenReturn(fd);
         when(withdrawalLogRepository.save(any())).thenReturn(new WithdrawalLog());
 
         fdService.saveWithdrawal(1L);
 
-        verify(fdRepository).save(argThat(saved -> expectedStatus.equals(saved.getStatus())));
-        verify(withdrawalLogRepository).save(argThat(log -> expectedWithdrawalType.equals(log.getWithdrawalType())));
+        if (expected.equals("WITHDRAWN"))
+            verify(fdRepository).save(argThat(f -> "WITHDRAWN".equals(f.getStatus())));
+        else
+            verify(withdrawalLogRepository).save(argThat(l -> "PREMATURE".equals(l.getWithdrawalType())));
+    }
+
+    // ── 5. Withdrawal Exceptions ──────────────────────────────────────────
+
+    static Stream<Arguments> withdrawalExceptionCases() {
+        return Stream.of(
+            Arguments.of("WITHDRAWN status → exception", "WITHDRAWN"),
+            Arguments.of("MATURED status → exception",   "MATURED")
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("withdrawalExceptionCases")
+    @DisplayName("saveWithdrawal – non-ACTIVE FD throws RuntimeException")
+    void withdrawal_nonActive_throws(String label, String status) {
+        FixedDeposit fd = activeFd(new BigDecimal("100000"), "SHORT_TERM",
+                LocalDate.of(2024, 1, 1), LocalDate.of(2025, 1, 1));
+        fd.setStatus(status);
+        when(fdRepository.findById(1L)).thenReturn(Optional.of(fd));
+
+        assertThatThrownBy(() -> fdService.saveWithdrawal(1L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("FD is not active");
+    }
+
+    // ── 6. getPortfolio ───────────────────────────────────────────────────
+
+    static Stream<Arguments> portfolioSnapshotCases() {
+        return Stream.of(
+            Arguments.of("No profile → null snapshot", Optional.empty(), true),
+            Arguments.of("With profile → populated snapshot", Optional.of(buildProfile()), false)
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("portfolioSnapshotCases")
+    @DisplayName("getPortfolio – financial profile null vs populated")
+    void getPortfolio_snapshot(String label,
+                                Optional<UserFinancialProfile> profile,
+                                boolean expectNull) {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(fdRepository.findActiveFdsByUserId(1L)).thenReturn(List.of());
+        when(profileRepository.findById(1L)).thenReturn(profile);
+
+        PortfolioResponse r = fdService.getPortfolio(1L);
+        if (expectNull)
+            assertThat(r.financialProfile).isNull();
+        else
+            assertThat(r.financialProfile.persona).isEqualTo("Conservative Saver");
+    }
+
+    static Stream<Arguments> portfolioTotalsCases() {
+        return Stream.of(
+            Arguments.of("No FDs → zero totals",  List.of(),         "0",      "0"),
+            Arguments.of("One FD → summed totals", null, "200000", "215000.00")
+        );
+    }
+
+    @ParameterizedTest(name = "{0}")
+    @MethodSource("portfolioTotalsCases")
+    @DisplayName("getPortfolio – totals summed correctly")
+    void getPortfolio_totals(String label, List<FixedDeposit> fds,
+                              String expectedPrincipal, String expectedMaturity) {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        List<FixedDeposit> list = fds != null ? fds : List.of(
+                activeFd(new BigDecimal("200000"), "SHORT_TERM",
+                        LocalDate.of(2025, 1, 1), LocalDate.of(2026, 1, 1)));
+        // Override maturityAmount for the single-FD case
+        if (!list.isEmpty()) list.get(0).setMaturityAmount(new BigDecimal("215000.00"));
+        when(fdRepository.findActiveFdsByUserId(1L)).thenReturn(list);
+        when(profileRepository.findById(1L)).thenReturn(Optional.empty());
+
+        PortfolioResponse r = fdService.getPortfolio(1L);
+        assertThat(r.totalPrincipal).isEqualByComparingTo(new BigDecimal(expectedPrincipal));
+        assertThat(r.totalMaturityValue).isEqualByComparingTo(new BigDecimal(expectedMaturity));
+    }
+
+    @Test
+    @DisplayName("getPortfolio – unknown user throws RuntimeException")
+    void getPortfolio_userNotFound() {
+        when(userRepository.findById(99L)).thenReturn(Optional.empty());
+        assertThatThrownBy(() -> fdService.getPortfolio(99L))
+                .isInstanceOf(RuntimeException.class)
+                .hasMessageContaining("User not found: 99");
+    }
+
+    // ── 7. Analytics failure resilience ──────────────────────────────────
+
+    @Test
+    @DisplayName("createFd – Go service failure does not prevent FD creation")
+    void createFd_analyticsFailureDoesNotRollback() {
+        when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+        when(fdRepository.save(any())).thenAnswer(inv -> savedFd(inv.getArgument(0)));
+        when(fdRepository.findActiveFdsByUserId(1L)).thenReturn(List.of());
+        when(goRiskClient.analyze(any(), any()))
+                .thenThrow(new RuntimeException("Go service down"));
+
+        FdResponse r = fdService.createFd(new CreateFdRequest(
+                1L, new BigDecimal("200000"), new BigDecimal("7.5"),
+                12, LocalDate.of(2025, 1, 1)));
+
+        assertThat(r).isNotNull();
+        assertThat(r.status).isEqualTo("ACTIVE");
+    }
+
+    // ── Fixtures ──────────────────────────────────────────────────────────
+
+    private static UserFinancialProfile buildProfile() {
+        return UserFinancialProfile.builder().userId(1L)
+                .persona("Conservative Saver")
+                .liquidityScore(new BigDecimal("80"))
+                .maturitySpreadScore(new BigDecimal("70"))
+                .penaltyRisk(new BigDecimal("20"))
+                .concentrationRisk(new BigDecimal("65"))
+                .ladderScore(new BigDecimal("75"))
+                .portfolioHealthScore(new BigDecimal("77"))
+                .recommendation("Healthy portfolio").build();
     }
 }

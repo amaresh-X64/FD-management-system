@@ -5,24 +5,18 @@ import plotly.graph_objects as go
 import plotly.express as px
 from datetime import date, datetime
 import json
-
-# ── Config ────────────────────────────────────────────────────────────────
 API = "http://spring-service:8080"
 GO_URL      = "http://go-risk-engine:8081"
 FASTAPI_URL = "http://fastapi-analytics:8082"
-
 st.set_page_config(
-    page_title="FD Shield",
+    page_title="FD Management",
     page_icon="🛡️",
     layout="wide",
     initial_sidebar_state="expanded"
 )
-
-# ── Custom CSS ────────────────────────────────────────────────────────────
 st.markdown("""
 <style>
 @import url('https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@300;400;500;700&family=Sora:wght@300;400;600;700&display=swap');
-
 html, body, [class*="css"] {
     font-family: 'Sora', sans-serif;
 }
@@ -176,8 +170,6 @@ html, body, [class*="css"] {
 </style>
 """, unsafe_allow_html=True)
 
-
-# ── Helpers ───────────────────────────────────────────────────────────────
 def api_post(endpoint, payload):
     try:
         r = requests.post(f"{API}{endpoint}", json=payload, timeout=10)
@@ -248,17 +240,12 @@ def gauge_chart(value, title, color):
     )
     return fig
 
-
-# ── Header ────────────────────────────────────────────────────────────────
 st.markdown("""
 <div class="fd-header">
-  <p class="fd-title">🛡️ FD Shield</p>
+  <p class="fd-title">🛡️ FD Management</p>
   <p class="fd-subtitle">// INTELLIGENT FIXED DEPOSIT PORTFOLIO & LIQUIDITY MANAGEMENT</p>
 </div>
 """, unsafe_allow_html=True)
-
-
-# ── Sidebar ───────────────────────────────────────────────────────────────
 with st.sidebar:
     st.markdown('<p class="section-header">Navigation</p>', unsafe_allow_html=True)
     page = st.radio("", ["📊 Portfolio Dashboard", "➕ Create User", "💰 Create FD", "🏧 Withdraw FD"],
@@ -283,10 +270,6 @@ with st.sidebar:
         </div>
         """, unsafe_allow_html=True)
 
-
-# ════════════════════════════════════════════════════════════════════════
-# PAGE: Portfolio Dashboard
-# ════════════════════════════════════════════════════════════════════════
 if page == "📊 Portfolio Dashboard":
     st.markdown('<p class="section-header">Portfolio Dashboard</p>', unsafe_allow_html=True)
 
@@ -302,8 +285,6 @@ if page == "📊 Portfolio Dashboard":
             user = data.get("user", {})
             fds  = data.get("activeFds", [])
             prof = data.get("financialProfile") or {}
-
-            # ── User overview ─────────────────────────────────────────
             st.markdown(f"""
             <div style="background:#111827;border:1px solid #1E293B;border-radius:12px;
                         padding:1.25rem 1.5rem;margin-bottom:1.5rem;">
@@ -331,7 +312,6 @@ if page == "📊 Portfolio Dashboard":
             </div>
             """, unsafe_allow_html=True)
 
-            # ── Scores ────────────────────────────────────────────────
             if prof:
                 persona = prof.get("persona", "Unknown")
                 bg, fg = persona_color(persona)
@@ -371,7 +351,6 @@ if page == "📊 Portfolio Dashboard":
                         st.plotly_chart(gauge_chart(v, title, color),
                                         use_container_width=True, config={"displayModeBar": False})
 
-                # Concentration risk as a simple metric bar
                 conc = prof.get("concentrationRisk")
                 if conc is not None:
                     cv = float(conc)
@@ -392,8 +371,6 @@ if page == "📊 Portfolio Dashboard":
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-
-                # ── Recommendations ───────────────────────────────────
                 rec = prof.get("recommendation", "")
                 if rec:
                     st.markdown('<p class="section-header" style="margin-top:1rem">Recommendations</p>',
@@ -402,13 +379,9 @@ if page == "📊 Portfolio Dashboard":
                         if tip.strip():
                             st.markdown(f'<div class="rec-box">💡 {tip.strip()}</div>',
                                         unsafe_allow_html=True)
-
-            # ── FD Table ──────────────────────────────────────────────
             if fds:
                 st.markdown('<p class="section-header" style="margin-top:1.5rem">Active Fixed Deposits</p>',
                             unsafe_allow_html=True)
-
-                # Plotly bar chart — principal vs maturity
                 df = pd.DataFrame(fds)
                 fig = go.Figure()
                 fig.add_trace(go.Bar(
@@ -438,8 +411,6 @@ if page == "📊 Portfolio Dashboard":
                     height=260,
                 )
                 st.plotly_chart(fig, use_container_width=True, config={"displayModeBar": False})
-
-                # FD cards
                 for fd in fds:
                     fd_type = fd.get("fdType", "")
                     pill_class = "short-term" if fd_type == "SHORT_TERM" else "long-term"
@@ -469,8 +440,6 @@ if page == "📊 Portfolio Dashboard":
                         </div>
                     </div>
                     """, unsafe_allow_html=True)
-
-                # Maturity timeline scatter
                 st.markdown('<p class="section-header" style="margin-top:1rem">Maturity Timeline</p>',
                             unsafe_allow_html=True)
                 timeline_fig = go.Figure()
@@ -507,10 +476,6 @@ if page == "📊 Portfolio Dashboard":
                 </div>
                 """, unsafe_allow_html=True)
 
-
-# ════════════════════════════════════════════════════════════════════════
-# PAGE: Create User
-# ════════════════════════════════════════════════════════════════════════
 elif page == "➕ Create User":
     st.markdown('<p class="section-header">Create New User</p>', unsafe_allow_html=True)
 
@@ -543,11 +508,6 @@ elif page == "➕ Create User":
             else:
                 st.markdown(f'<div class="toast-error">❌ {data.get("error", "Failed to create user")}</div>',
                             unsafe_allow_html=True)
-
-
-# ════════════════════════════════════════════════════════════════════════
-# PAGE: Create FD
-# ════════════════════════════════════════════════════════════════════════
 elif page == "💰 Create FD":
     st.markdown('<p class="section-header">Create Fixed Deposit</p>', unsafe_allow_html=True)
 
@@ -561,8 +521,6 @@ elif page == "💰 Create FD":
     with c2:
         duration   = st.number_input("Duration (months)", min_value=1, max_value=120, value=24, step=1)
         start_date = st.date_input("Start Date", value=date.today())
-
-    # Live preview — updates instantly as inputs change (outside form)
     import math
     r = rate / 100
     t = duration / 12
@@ -612,11 +570,6 @@ elif page == "💰 Create FD":
         else:
             st.markdown(f'<div class="toast-error">❌ {data.get("error", "Failed to create FD")}</div>',
                         unsafe_allow_html=True)
-
-
-# ════════════════════════════════════════════════════════════════════════
-# PAGE: Withdraw FD
-# ════════════════════════════════════════════════════════════════════════
 elif page == "🏧 Withdraw FD":
     st.markdown('<p class="section-header">Simulate Premature Withdrawal</p>', unsafe_allow_html=True)
 

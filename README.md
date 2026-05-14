@@ -1,6 +1,7 @@
 # FD Shield — Setup Guide
 
 ## Prerequisites
+
 - Docker Desktop running
 - Git (optional)
 
@@ -11,6 +12,7 @@
 Open your Neon console → SQL Editor, paste and run `schema.sql`.
 
 Or run from terminal:
+
 ```bash
 psql 'postgresql://neondb_owner:npg_cEadmPN9OT4W@ep-blue-lab-aom0sc9s-pooler.c-2.ap-southeast-1.aws.neon.tech/neondb?sslmode=require&channel_binding=require' -f schema.sql
 ```
@@ -20,16 +22,16 @@ psql 'postgresql://neondb_owner:npg_cEadmPN9OT4W@ep-blue-lab-aom0sc9s-pooler.c-2
 ## Step 2 — Build and start all services
 
 ```bash
-cd fd-shield
+cd fd-management
 docker compose up --build
 ```
 
 This starts:
-| Service         | Port |
+| Service | Port |
 |----------------|------|
-| Spring Boot     | 8080 |
-| Go Risk Engine  | 8081 |
-| FastAPI         | 8082 |
+| Spring Boot | 8080 |
+| Go Risk Engine | 8081 |
+| FastAPI | 8082 |
 
 ---
 
@@ -54,6 +56,7 @@ Open `frontend/index.html` in your browser directly (no server needed).
 ## Quick API test via curl
 
 ### Create a user
+
 ```bash
 curl -X POST http://localhost:8080/users \
   -H "Content-Type: application/json" \
@@ -66,6 +69,7 @@ curl -X POST http://localhost:8080/users \
 ```
 
 ### Create an FD
+
 ```bash
 curl -X POST http://localhost:8080/fds \
   -H "Content-Type: application/json" \
@@ -79,11 +83,13 @@ curl -X POST http://localhost:8080/fds \
 ```
 
 ### View portfolio (triggers Go + FastAPI)
+
 ```bash
 curl http://localhost:8080/users/1/portfolio
 ```
 
 ### Simulate withdrawal
+
 ```bash
 curl -X POST http://localhost:8080/withdraw \
   -H "Content-Type: application/json" \
@@ -114,7 +120,7 @@ Go :8081    FastAPI :8082
 ## Folder structure
 
 ```
-fd-shield/
+fd-management/
 ├── docker-compose.yml
 ├── schema.sql
 ├── README.md

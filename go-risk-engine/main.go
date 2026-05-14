@@ -1,7 +1,7 @@
 package main
 
 import (
-	"fd-shield/go-risk-engine/handlers"
+	"fd-management/go-risk-engine/handlers"
 	"log"
 
 	"github.com/gin-gonic/gin"

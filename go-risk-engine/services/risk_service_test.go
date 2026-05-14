@@ -1,7 +1,7 @@
 package services
 
 import (
-	"fd-shield/go-risk-engine/models"
+	"fd-management/go-risk-engine/models"
 	"testing"
 )
 
@@ -88,7 +88,7 @@ func TestSpread_AllSameDate(t *testing.T) {
 	req := models.RiskRequest{Fds: []models.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
-		{ID: 3, Principal: 100000, FdType: "LONG_TERM",  MaturityDate: "2026-06-01"},
+		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2026-06-01"},
 	}}
 	score := calcMaturitySpreadScore(req)
 	if score > 15 {
@@ -101,8 +101,8 @@ func TestSpread_PerfectYearlyLadder(t *testing.T) {
 	req := models.RiskRequest{Fds: []models.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2025-01-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
-		{ID: 3, Principal: 100000, FdType: "LONG_TERM",  MaturityDate: "2027-01-01"},
-		{ID: 4, Principal: 100000, FdType: "LONG_TERM",  MaturityDate: "2028-01-01"},
+		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2027-01-01"},
+		{ID: 4, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
 	}}
 	score := calcMaturitySpreadScore(req)
 	if score < 80 {
@@ -175,8 +175,8 @@ func TestConcentration_EqualDistribution(t *testing.T) {
 	req := models.RiskRequest{Fds: []models.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-07-01"},
-		{ID: 3, Principal: 100000, FdType: "LONG_TERM",  MaturityDate: "2027-01-01"},
-		{ID: 4, Principal: 100000, FdType: "LONG_TERM",  MaturityDate: "2027-07-01"},
+		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2027-01-01"},
+		{ID: 4, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2027-07-01"},
 	}}
 	score := calcConcentrationRisk(req)
 	if score < 70 || score > 80 {
@@ -188,7 +188,7 @@ func TestConcentration_DICGCBreachPenalty(t *testing.T) {
 	// FD over ₹5 lakh should be penalised
 	req := models.RiskRequest{Fds: []models.FdItem{
 		{ID: 1, Principal: 1000000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
-		{ID: 2, Principal: 200000,  FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
+		{ID: 2, Principal: 200000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 	}}
 	scoreWithBreach := calcConcentrationRisk(req)
 
@@ -218,8 +218,8 @@ func TestLadder_IdealThreeToFiveRungs(t *testing.T) {
 	req := models.RiskRequest{Fds: []models.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2025-06-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
-		{ID: 3, Principal: 100000, FdType: "LONG_TERM",  MaturityDate: "2027-06-01"},
-		{ID: 4, Principal: 100000, FdType: "LONG_TERM",  MaturityDate: "2028-06-01"},
+		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2027-06-01"},
+		{ID: 4, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2028-06-01"},
 	}}
 	score := calcLadderScore(req)
 	if score < 85 {
@@ -230,7 +230,7 @@ func TestLadder_IdealThreeToFiveRungs(t *testing.T) {
 func TestLadder_TooFewRungs(t *testing.T) {
 	req := models.RiskRequest{Fds: []models.FdItem{
 		{ID: 1, Principal: 200000, FdType: "SHORT_TERM", MaturityDate: "2025-06-01"},
-		{ID: 2, Principal: 200000, FdType: "LONG_TERM",  MaturityDate: "2026-06-01"},
+		{ID: 2, Principal: 200000, FdType: "LONG_TERM", MaturityDate: "2026-06-01"},
 	}}
 	score := calcLadderScore(req)
 	if score > 75 {
@@ -244,7 +244,7 @@ func TestLadder_AllClusteredTogether(t *testing.T) {
 	req := models.RiskRequest{Fds: []models.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-15"},
-		{ID: 3, Principal: 100000, FdType: "LONG_TERM",  MaturityDate: "2026-06-30"},
+		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2026-06-30"},
 	}}
 	score := calcLadderScore(req)
 	// Clustered FDs: span < 1 month → coverage score = 20, rung bonus applies

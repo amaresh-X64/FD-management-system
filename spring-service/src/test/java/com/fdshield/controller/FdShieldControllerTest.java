@@ -1,5 +1,4 @@
 package com.fdshield.controller;
-
 import com.fasterxml.jackson.databind.ObjectMapper;
 import com.fasterxml.jackson.datatype.jsr310.JavaTimeModule;
 import com.fdshield.dto.*;
@@ -17,17 +16,14 @@ import org.mockito.junit.jupiter.MockitoExtension;
 import org.springframework.http.MediaType;
 import org.springframework.test.web.servlet.MockMvc;
 import org.springframework.test.web.servlet.setup.MockMvcBuilders;
-
 import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.time.LocalDateTime;
 import java.util.List;
 import java.util.stream.Stream;
-
 import static org.mockito.Mockito.*;
 import static org.springframework.test.web.servlet.request.MockMvcRequestBuilders.*;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.*;
-
 @ExtendWith(MockitoExtension.class)
 class FdShieldControllerTest {
 
@@ -214,7 +210,7 @@ class FdShieldControllerTest {
         return Stream.of(
                 Arguments.of(
                         "Null userId returns 400",
-                        """
+                         """
                                 {"principal":100000,"interestRate":7.5,"durationMonths":12,"startDate":"2025-01-01"}
                                 """),
                 Arguments.of(

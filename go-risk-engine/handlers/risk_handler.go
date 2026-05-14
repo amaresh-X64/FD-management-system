@@ -1,8 +1,8 @@
 package handlers
 
 import (
-	"fd-shield/go-risk-engine/models"
-	"fd-shield/go-risk-engine/services"
+	"fd-management/go-risk-engine/models"
+	"fd-management/go-risk-engine/services"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

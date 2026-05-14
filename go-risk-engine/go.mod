@@ -1,4 +1,4 @@
-module fd-shield/go-risk-engine
+module fd-management/go-risk-engine
 
 go 1.22.0
 
