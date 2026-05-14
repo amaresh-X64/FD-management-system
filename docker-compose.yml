@@ -1,0 +1,46 @@
+version: "3.9"
+
+services:
+
+  spring-service:
+    build: ./spring-service
+    container_name: fd-spring
+    ports:
+      - "8080:8080"
+    env_file:
+      - .env
+    depends_on:
+      - go-risk-engine
+      - fastapi-analytics
+    networks:
+      - fd-network
+
+  go-risk-engine:
+    build: ./go-risk-engine
+    container_name: fd-go
+    ports:
+      - "8081:8081"
+    networks:
+      - fd-network
+
+  fastapi-analytics:
+    build: ./fastapi-analytics
+    container_name: fd-fastapi
+    ports:
+      - "8082:8082"
+    networks:
+      - fd-network
+
+  streamlit-dashboard:
+    build: ./streamlit-dashboard
+    container_name: fd-streamlit
+    ports:
+      - "8501:8501"
+    depends_on:
+      - spring-service
+    networks:
+      - fd-network
+
+networks:
+  fd-network:
+    driver: bridge
