@@ -4,7 +4,6 @@ import (
 	"fd-management/go-risk-engine/models"
 	"fd-management/go-risk-engine/services"
 	"net/http"
-
 	"github.com/gin-gonic/gin"
 )
 
