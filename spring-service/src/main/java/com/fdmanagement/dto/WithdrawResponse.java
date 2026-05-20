@@ -10,7 +10,7 @@ import java.math.BigDecimal;
 @Builder
 public class WithdrawResponse {
     public Long fdId;
-    public Long userId; // used internally to trigger analytics refresh
+    public Long userId;
     public BigDecimal principal;
     public BigDecimal interestEarned;
     public BigDecimal penaltyAmount;

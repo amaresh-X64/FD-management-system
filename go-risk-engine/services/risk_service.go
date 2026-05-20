@@ -2,7 +2,6 @@ package services
 
 import (
 	"fd-management/go-risk-engine/models"
-	"fmt"
 	"math"
 	"sort"
 	"time"
@@ -27,6 +26,7 @@ func AnalyzeRisk(req models.RiskRequest) models.RiskResult {
 		PenaltyExposure:     <-penaltyCh,
 		ConcentrationRisk:   <-concentrationCh,
 		LadderScore:         <-ladderCh,
+
 	}
 }
 func calcLiquidityScore(req models.RiskRequest) float64 {
@@ -259,11 +259,6 @@ func calcLadderScore(req models.RiskRequest) float64 {
 
 	score := coverageScore*0.40 + regularityScore*0.40 + rungScore*0.20
 	return round(math.Min(score, 100), 2)
-}
-
-func quarterKey(t time.Time) string {
-	q := (int(t.Month())-1)/3 + 1
-	return fmt.Sprintf("%d-Q%d", t.Year(), q)
 }
 
 func round(val float64, places int) float64 {

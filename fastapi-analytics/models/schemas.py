@@ -8,7 +8,7 @@ class FdItem(BaseModel):
     maturityAmount: float
     durationMonths: int
     maturityDate: str
-    fdType: str  # SHORT_TERM or LONG_TERM
+    fdType: str
 
 class AnalyticsRequest(BaseModel):
     userId: int

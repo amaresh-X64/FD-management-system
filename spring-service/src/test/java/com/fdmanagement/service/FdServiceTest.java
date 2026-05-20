@@ -45,8 +45,6 @@ class FdServiceTest {
                 .monthlyExpenses(new BigDecimal("40000")).build();
     }
 
-    // ── Shared helpers ────────────────────────────────────────────────────
-
     private FixedDeposit savedFd(FixedDeposit fd) {
         return FixedDeposit.builder().id(1L).user(testUser)
                 .principal(fd.getPrincipal()).interestRate(fd.getInterestRate())
@@ -64,7 +62,6 @@ class FdServiceTest {
                 .fdType(type).status("ACTIVE").build();
     }
 
-    // ── 1. Compound Interest ──────────────────────────────────────────────
 
     static Stream<Arguments> maturityCases() {
         return Stream.of(
@@ -88,7 +85,6 @@ class FdServiceTest {
             assertThat(result).isBetween(new BigDecimal(min), new BigDecimal(max));
     }
 
-    // ── 2. FD Type & Maturity Date ────────────────────────────────────────
 
     static Stream<Arguments> fdTypeCases() {
         return Stream.of(
@@ -135,7 +131,6 @@ class FdServiceTest {
                 .hasMessageContaining("User not found: 99");
     }
 
-    // ── 3. Withdrawal Calculations ────────────────────────────────────────
 
     @Test
     @DisplayName("saveWithdrawal – penalty = 1% of principal")
@@ -164,8 +159,6 @@ class FdServiceTest {
                 .isEqualByComparingTo(r.principal.add(r.interestEarned).subtract(r.penaltyAmount));
     }
 
-    // ── 4. Withdrawal Side Effects ────────────────────────────────────────
-
     static Stream<Arguments> withdrawalSideEffectCases() {
         return Stream.of(
             Arguments.of("Sets status to WITHDRAWN", "WITHDRAWN"),
@@ -191,8 +184,6 @@ class FdServiceTest {
             verify(withdrawalLogRepository).save(argThat(l -> "PREMATURE".equals(l.getWithdrawalType())));
     }
 
-    // ── 5. Withdrawal Exceptions ──────────────────────────────────────────
-
     static Stream<Arguments> withdrawalExceptionCases() {
         return Stream.of(
             Arguments.of("WITHDRAWN status → exception", "WITHDRAWN"),
@@ -213,8 +204,6 @@ class FdServiceTest {
                 .isInstanceOf(RuntimeException.class)
                 .hasMessageContaining("FD is not active");
     }
-
-    // ── 6. getPortfolio ───────────────────────────────────────────────────
 
     static Stream<Arguments> portfolioSnapshotCases() {
         return Stream.of(
@@ -256,7 +245,6 @@ class FdServiceTest {
         List<FixedDeposit> list = fds != null ? fds : List.of(
                 activeFd(new BigDecimal("200000"), "SHORT_TERM",
                         LocalDate.of(2025, 1, 1), LocalDate.of(2026, 1, 1)));
-        // Override maturityAmount for the single-FD case
         if (!list.isEmpty()) list.get(0).setMaturityAmount(new BigDecimal("215000.00"));
         when(fdRepository.findActiveFdsByUserId(1L)).thenReturn(list);
         when(profileRepository.findById(1L)).thenReturn(Optional.empty());
@@ -275,7 +263,6 @@ class FdServiceTest {
                 .hasMessageContaining("User not found: 99");
     }
 
-    // ── 7. Analytics failure resilience ──────────────────────────────────
 
     @Test
     @DisplayName("createFd – Go service failure does not prevent FD creation")
@@ -294,8 +281,6 @@ class FdServiceTest {
         assertThat(r.status).isEqualTo("ACTIVE");
     }
 
-    // ── 8. withdrawFd outer wrapper ───────────────────────────────────────
-    // covers withdrawFd(Long) and lambda$saveWithdrawal$1 which were 0%
 
     @Test
     @DisplayName("withdrawFd – outer wrapper calls saveWithdrawal and triggers analytics")
@@ -306,7 +291,6 @@ class FdServiceTest {
         when(fdRepository.findById(1L)).thenReturn(Optional.of(fd));
         when(fdRepository.save(any())).thenReturn(fd);
         when(withdrawalLogRepository.save(any())).thenReturn(new WithdrawalLog());
-        // analytics refresh stubs
         when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
         when(fdRepository.findActiveFdsByUserId(1L)).thenReturn(List.of());
 
@@ -325,8 +309,6 @@ class FdServiceTest {
                 .hasMessageContaining("FD not found: 99");
     }
 
-    // ── 9. triggerAnalyticsRefresh branches ───────────────────────────────
-    // covers the "existing profile → update" path (19% → higher)
 
     @Test
     @DisplayName("createFd – analytics refresh updates existing profile when one already exists")
@@ -397,7 +379,6 @@ class FdServiceTest {
                 "Balanced Investor".equals(p.getPersona())));
     }
 
-    // ── Fixtures ──────────────────────────────────────────────────────────
 
     private static UserFinancialProfile buildProfile() {
         return UserFinancialProfile.builder().userId(1L)

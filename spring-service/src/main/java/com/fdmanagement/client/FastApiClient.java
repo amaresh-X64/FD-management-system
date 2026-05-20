@@ -14,7 +14,6 @@ import java.util.Map;
 @Component
 @Slf4j
 public class FastApiClient {
-
     private final RestTemplate restTemplate;
     private final String fastapiUrl;
 

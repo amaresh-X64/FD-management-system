@@ -40,11 +40,9 @@ public class FixedDeposit {
     @Column(name = "maturity_date")
     private LocalDate maturityDate;
 
-    // SHORT_TERM or LONG_TERM
     @Column(name = "fd_type", nullable = false)
     private String fdType;
 
-    // ACTIVE, MATURED, WITHDRAWN
     @Column(nullable = false)
     private String status;
 }

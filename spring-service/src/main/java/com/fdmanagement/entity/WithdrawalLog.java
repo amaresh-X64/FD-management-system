@@ -22,7 +22,6 @@ public class WithdrawalLog {
     @JoinColumn(name = "fd_id", nullable = false)
     private FixedDeposit fixedDeposit;
 
-    // PREMATURE or MATURITY
     @Column(name = "withdrawal_type", nullable = false)
     private String withdrawalType;
 
