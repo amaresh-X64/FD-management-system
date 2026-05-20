@@ -107,6 +107,10 @@ func calcMaturitySpreadScore(req models.RiskRequest) float64 {
 }
 
 func calcPenaltyExposure(req models.RiskRequest) float64 {
+	return calcPenaltyExposureAt(req, time.Now())
+}
+
+func calcPenaltyExposureAt(req models.RiskRequest, now time.Time) float64 {
 	if req.MonthlyIncome == 0 {
 		return 100
 	}
@@ -131,7 +135,6 @@ func calcPenaltyExposure(req models.RiskRequest) float64 {
 	severity := 0.0
 	if len(req.Fds) > 0 {
 		var totalPrincipal, weightedMonths float64
-		now := time.Now()
 		for _, fd := range req.Fds {
 			maturity, err := time.Parse("2006-01-02", fd.MaturityDate)
 			if err != nil {
