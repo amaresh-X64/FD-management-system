@@ -4,204 +4,185 @@ import com.fdmanagement.dto.CreateUserRequest;
 import com.fdmanagement.dto.UserResponse;
 import com.fdmanagement.entity.User;
 import com.fdmanagement.repository.UserRepository;
-
-import org.junit.jupiter.api.BeforeEach;
-import org.junit.jupiter.api.DisplayName;
+import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
-import org.junit.jupiter.params.ParameterizedTest;
-import org.junit.jupiter.params.provider.Arguments;
-import org.junit.jupiter.params.provider.MethodSource;
 import org.mockito.InjectMocks;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
 
 import java.math.BigDecimal;
 import java.util.Optional;
-import java.util.stream.Stream;
 
 import static org.assertj.core.api.Assertions.*;
-import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.argThat;
 import static org.mockito.Mockito.*;
 
 @ExtendWith(MockitoExtension.class)
 class UserServiceTest {
 
-        @Mock
-        private UserRepository userRepository;
-        @Mock
-        private FdService fdService;
+    @Mock private UserRepository userRepository;
+    @Mock private FdService fdService;
 
-        @InjectMocks
-        private UserService userService;
+    @InjectMocks private UserService userService;
 
-        private User savedUser;
-        private UserResponse userResponse;
+    private User savedUser;
+    private UserResponse userResponse;
 
-        @BeforeEach
-        void setUp() {
-                savedUser = User.builder()
-                                .id(1L)
-                                .name("Arjun Kumar")
-                                .email("arjun@example.com")
-                                .monthlyIncome(new BigDecimal("80000"))
-                                .monthlyExpenses(new BigDecimal("40000"))
-                                .build();
+    @BeforeEach
+    void setUp() {
+        savedUser = User.builder()
+                .id(1L).name("Arjun Kumar").email("arjun@example.com")
+                .monthlyIncome(new BigDecimal("80000"))
+                .monthlyExpenses(new BigDecimal("40000")).build();
 
-                userResponse = new UserResponse(
-                                1L, "Arjun Kumar", "arjun@example.com",
-                                new BigDecimal("80000"), new BigDecimal("40000"), null);
+        userResponse = new UserResponse(
+                1L, "Arjun Kumar", "arjun@example.com",
+                new BigDecimal("80000"), new BigDecimal("40000"), null);
+    }
+
+    // ── createUser ────────────────────────────────────────────────────────────
+
+    @Nested
+    @DisplayName("createUser")
+    class CreateUser {
+
+        @Test
+        void shouldReturnMappedResponse_whenInputIsValidUserWithUniqueEmail() {
+            CreateUserRequest req = new CreateUserRequest(
+                    "Arjun Kumar", "arjun@example.com",
+                    new BigDecimal("80000"), new BigDecimal("40000"));
+
+            when(userRepository.findByEmail("arjun@example.com")).thenReturn(Optional.empty());
+            when(userRepository.save(argThat(u -> "arjun@example.com".equals(u.getEmail()))))
+                    .thenReturn(savedUser);
+            when(fdService.toUserResponse(savedUser)).thenReturn(userResponse);
+
+            assertThat(userService.createUser(req)).isEqualTo(userResponse);
+            verify(userRepository).save(argThat(u -> "arjun@example.com".equals(u.getEmail())));
         }
 
-        static Stream<Arguments> createUserSuccessCases() {
-                return Stream.of(
-                                Arguments.of(
-                                                "New user with unique email is saved and response is returned",
-                                                "Arjun Kumar", "arjun@example.com",
-                                                new BigDecimal("80000"), new BigDecimal("40000")),
-                                Arguments.of(
-                                                "User with zero expenses is saved correctly",
-                                                "Priya Sharma", "priya@example.com",
-                                                new BigDecimal("50000"), BigDecimal.ZERO));
+        @Test
+        void shouldReturnMappedResponse_whenInputIsUserWithZeroExpenses() {
+            User zeroExpUser = User.builder().id(2L).name("Priya Sharma")
+                    .email("priya@example.com")
+                    .monthlyIncome(new BigDecimal("50000"))
+                    .monthlyExpenses(BigDecimal.ZERO).build();
+            UserResponse zeroExpResponse = new UserResponse(
+                    2L, "Priya Sharma", "priya@example.com",
+                    new BigDecimal("50000"), BigDecimal.ZERO, null);
+            CreateUserRequest req = new CreateUserRequest(
+                    "Priya Sharma", "priya@example.com",
+                    new BigDecimal("50000"), BigDecimal.ZERO);
+
+            when(userRepository.findByEmail("priya@example.com")).thenReturn(Optional.empty());
+            when(userRepository.save(argThat(u -> "priya@example.com".equals(u.getEmail()))))
+                    .thenReturn(zeroExpUser);
+            when(fdService.toUserResponse(zeroExpUser)).thenReturn(zeroExpResponse);
+
+            assertThat(userService.createUser(req)).isEqualTo(zeroExpResponse);
         }
 
-        @ParameterizedTest(name = "{0}")
-        @MethodSource("createUserSuccessCases")
-        @DisplayName("createUser – saves user and returns mapped response")
-        void createUser_success(
-                        String description,
-                        String name, String email,
-                        BigDecimal monthlyIncome, BigDecimal monthlyExpenses) {
+        @Test
+        void shouldMapAllRequestFieldsOntoEntity_whenInputIsValidRequest() {
+            CreateUserRequest req = new CreateUserRequest(
+                    "Arjun Kumar", "arjun@example.com",
+                    new BigDecimal("80000"), new BigDecimal("40000"));
 
-                CreateUserRequest req = new CreateUserRequest(name, email, monthlyIncome, monthlyExpenses);
+            when(userRepository.findByEmail("arjun@example.com")).thenReturn(Optional.empty());
+            when(userRepository.save(argThat(u -> "arjun@example.com".equals(u.getEmail()))))
+                    .thenReturn(savedUser);
+            when(fdService.toUserResponse(savedUser)).thenReturn(userResponse);
 
-                User builtUser = User.builder()
-                                .id(1L).name(name).email(email)
-                                .monthlyIncome(monthlyIncome).monthlyExpenses(monthlyExpenses)
-                                .build();
+            userService.createUser(req);
 
-                UserResponse expectedResponse = new UserResponse(
-                                1L, name, email, monthlyIncome, monthlyExpenses, null);
-
-                when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
-                when(userRepository.save(any(User.class))).thenReturn(builtUser);
-                when(fdService.toUserResponse(builtUser)).thenReturn(expectedResponse);
-
-                UserResponse response = userService.createUser(req);
-
-                assertThat(response).isEqualTo(expectedResponse);
-                verify(userRepository).save(any(User.class));
-                verify(fdService).toUserResponse(builtUser);
+            verify(userRepository).save(argThat(u ->
+                    "Arjun Kumar".equals(u.getName()) &&
+                    "arjun@example.com".equals(u.getEmail()) &&
+                    new BigDecimal("80000").compareTo(u.getMonthlyIncome()) == 0 &&
+                    new BigDecimal("40000").compareTo(u.getMonthlyExpenses()) == 0));
         }
 
-        static Stream<Arguments> createUserDuplicateEmailCases() {
-                return Stream.of(
-                                Arguments.of(
-                                                "Duplicate email throws RuntimeException with message 'Email already registered: arjun@example.com'",
-                                                "arjun@example.com",
-                                                "Email already registered: arjun@example.com"),
-                                Arguments.of(
-                                                "Duplicate email throws RuntimeException with message 'Email already registered: priya@example.com'",
-                                                "priya@example.com",
-                                                "Email already registered: priya@example.com"));
+        @Test
+        void shouldThrowRuntimeExceptionAndNeverSave_whenInputIsDuplicateEmail() {
+            CreateUserRequest req = new CreateUserRequest(
+                    "Any Name", "arjun@example.com",
+                    new BigDecimal("80000"), new BigDecimal("40000"));
+
+            when(userRepository.findByEmail("arjun@example.com")).thenReturn(Optional.of(savedUser));
+
+            assertThatThrownBy(() -> userService.createUser(req))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Email already registered: arjun@example.com");
+
+            verify(userRepository, never()).save(argThat(u -> true));
+            verify(fdService, never()).toUserResponse(argThat(u -> true));
         }
 
-        @ParameterizedTest(name = "{0}")
-        @MethodSource("createUserDuplicateEmailCases")
-        @DisplayName("createUser – duplicate email throws RuntimeException")
-        void createUser_duplicateEmail_throwsException(
-                        String description, String email, String expectedMessage) {
+        @Test
+        void shouldThrowRuntimeExceptionWithCorrectEmail_whenInputIsAnotherDuplicateEmail() {
+            User priya = User.builder().id(2L).name("Priya").email("priya@example.com")
+                    .monthlyIncome(BigDecimal.ONE).monthlyExpenses(BigDecimal.ONE).build();
+            CreateUserRequest req = new CreateUserRequest(
+                    "Any Name", "priya@example.com",
+                    new BigDecimal("80000"), new BigDecimal("40000"));
 
-                CreateUserRequest req = new CreateUserRequest(
-                                "Any Name", email, new BigDecimal("80000"), new BigDecimal("40000"));
+            when(userRepository.findByEmail("priya@example.com")).thenReturn(Optional.of(priya));
 
-                when(userRepository.findByEmail(email)).thenReturn(Optional.of(savedUser));
+            assertThatThrownBy(() -> userService.createUser(req))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("Email already registered: priya@example.com");
+        }
+    }
 
-                assertThatThrownBy(() -> userService.createUser(req))
-                                .isInstanceOf(RuntimeException.class)
-                                .hasMessageContaining(expectedMessage);
+    // ── getUser ───────────────────────────────────────────────────────────────
 
-                verify(userRepository, never()).save(any());
-                verify(fdService, never()).toUserResponse(any());
+    @Nested
+    @DisplayName("getUser")
+    class GetUser {
+
+        @Test
+        void shouldReturnMappedResponse_whenInputIsExistingUserId1() {
+            when(userRepository.findById(1L)).thenReturn(Optional.of(savedUser));
+            when(fdService.toUserResponse(savedUser)).thenReturn(userResponse);
+
+            assertThat(userService.getUser(1L)).isEqualTo(userResponse);
+            verify(fdService).toUserResponse(savedUser);
         }
 
-        static Stream<Arguments> createUserFieldMappingCases() {
-                return Stream.of(
-                                Arguments.of(
-                                                "Request fields are mapped correctly onto the saved User entity",
-                                                "Arjun Kumar", "arjun@example.com",
-                                                new BigDecimal("80000"), new BigDecimal("40000")));
+        @Test
+        void shouldReturnMappedResponse_whenInputIsExistingUserId42() {
+            User user42 = User.builder().id(42L).name("Arjun Kumar")
+                    .email("arjun@example.com")
+                    .monthlyIncome(new BigDecimal("80000"))
+                    .monthlyExpenses(new BigDecimal("40000")).build();
+            UserResponse response42 = new UserResponse(
+                    42L, "Arjun Kumar", "arjun@example.com",
+                    new BigDecimal("80000"), new BigDecimal("40000"), null);
+
+            when(userRepository.findById(42L)).thenReturn(Optional.of(user42));
+            when(fdService.toUserResponse(user42)).thenReturn(response42);
+
+            assertThat(userService.getUser(42L)).isEqualTo(response42);
         }
 
-        @ParameterizedTest(name = "{0}")
-        @MethodSource("createUserFieldMappingCases")
-        @DisplayName("createUser – request fields are mapped onto User entity before save")
-        void createUser_fieldMapping(
-                        String description,
-                        String name, String email,
-                        BigDecimal monthlyIncome, BigDecimal monthlyExpenses) {
+        @Test
+        void shouldThrowRuntimeException_whenInputIsNonExistentUserId99() {
+            when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
-                CreateUserRequest req = new CreateUserRequest(name, email, monthlyIncome, monthlyExpenses);
+            assertThatThrownBy(() -> userService.getUser(99L))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("User not found: 99");
 
-                when(userRepository.findByEmail(email)).thenReturn(Optional.empty());
-                when(userRepository.save(any(User.class))).thenReturn(savedUser);
-                when(fdService.toUserResponse(any())).thenReturn(userResponse);
-
-                userService.createUser(req);
-
-                verify(userRepository).save(argThat(user -> name.equals(user.getName())
-                                && email.equals(user.getEmail())
-                                && monthlyIncome.compareTo(user.getMonthlyIncome()) == 0
-                                && monthlyExpenses.compareTo(user.getMonthlyExpenses()) == 0));
+            verify(fdService, never()).toUserResponse(argThat(u -> true));
         }
 
-        static Stream<Arguments> getUserSuccessCases() {
-                return Stream.of(
-                                Arguments.of("Existing userId=1 returns mapped UserResponse", 1L),
-                                Arguments.of("Existing userId=42 returns mapped UserResponse", 42L));
+        @Test
+        void shouldThrowRuntimeException_whenInputIsNonExistentUserId0() {
+            when(userRepository.findById(0L)).thenReturn(Optional.empty());
+
+            assertThatThrownBy(() -> userService.getUser(0L))
+                    .isInstanceOf(RuntimeException.class)
+                    .hasMessageContaining("User not found: 0");
         }
-
-        @ParameterizedTest(name = "{0}")
-        @MethodSource("getUserSuccessCases")
-        @DisplayName("getUser – existing user returns mapped response")
-        void getUser_success(String description, long userId) {
-                User user = User.builder()
-                                .id(userId).name("Arjun Kumar").email("arjun@example.com")
-                                .monthlyIncome(new BigDecimal("80000")).monthlyExpenses(new BigDecimal("40000"))
-                                .build();
-
-                UserResponse expectedResponse = new UserResponse(
-                                userId, "Arjun Kumar", "arjun@example.com",
-                                new BigDecimal("80000"), new BigDecimal("40000"), null);
-
-                when(userRepository.findById(userId)).thenReturn(Optional.of(user));
-                when(fdService.toUserResponse(user)).thenReturn(expectedResponse);
-
-                UserResponse response = userService.getUser(userId);
-
-                assertThat(response).isEqualTo(expectedResponse);
-                verify(fdService).toUserResponse(user);
-        }
-
-        static Stream<Arguments> getUserNotFoundCases() {
-                return Stream.of(
-                                Arguments.of("userId=99 not found throws RuntimeException",
-                                                99L, "User not found: 99"),
-                                Arguments.of("userId=0 not found throws RuntimeException",
-                                                0L, "User not found: 0"));
-        }
-
-        @ParameterizedTest(name = "{0}")
-        @MethodSource("getUserNotFoundCases")
-        @DisplayName("getUser – non-existent user throws RuntimeException")
-        void getUser_notFound_throwsException(
-                        String description, long userId, String expectedMessage) {
-
-                when(userRepository.findById(userId)).thenReturn(Optional.empty());
-
-                assertThatThrownBy(() -> userService.getUser(userId))
-                                .isInstanceOf(RuntimeException.class)
-                                .hasMessageContaining(expectedMessage);
-
-                verify(fdService, never()).toUserResponse(any());
-        }
+    }
 }

@@ -370,3 +370,30 @@ func Test_calcLadderScore_shouldReturn15_whenInputIsAllFdsWithInvalidMaturityDat
     assertExact(t, 15, calcLadderScore(req))
 }
 
+func Test_calcLiquidityScore_shouldReturn0_whenInputIsZeroMonthlyExpenses(t *testing.T) {
+	req := models.RiskRequest{
+		MonthlyIncome: 80000, MonthlyExpenses: 0,
+		Fds: []models.FdItem{singleShortFd(240000)},
+	}
+	assertExact(t, 0, calcLiquidityScore(req))
+}
+
+func Test_calcLiquidityScore_shouldCapSavingsBonusAt10_whenInputIsVeryHighSavingsRate(t *testing.T) {
+	// savingsRate = (100000-10000)/100000 = 0.9 → savingsRate*20 = 18, capped at 10
+	// short principal 30000 → monthsCovered=3 → base=50 → total=60
+	req := models.RiskRequest{
+		MonthlyIncome: 100000, MonthlyExpenses: 10000,
+		Fds: []models.FdItem{singleShortFd(30000)},
+	}
+	assertExact(t, 60, calcLiquidityScore(req))
+}
+
+func Test_calcMaturitySpreadScore_shouldReturn0_whenInputIsEmptyFdList(t *testing.T) {
+	req := models.RiskRequest{Fds: []models.FdItem{}}
+	assertExact(t, 0, calcMaturitySpreadScore(req))
+}
+
+func Test_calcLadderScore_shouldReturn0_whenInputIsEmptyFdList(t *testing.T) {
+	req := models.RiskRequest{Fds: []models.FdItem{}}
+	assertExact(t, 0, calcLadderScore(req))
+}

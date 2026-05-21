@@ -41,6 +41,7 @@ def _generate_recommendation(req: AnalyticsRequest) -> str:
     tips = []
 
     monthly_expenses = req.monthlyExpenses
+    short_principal = 0
 
     if req.fds:
         df = pd.DataFrame([{
