@@ -1,7 +1,7 @@
 from fastapi import FastAPI
 from routers.analytics_router import router
 
-app = FastAPI(title="FD Shield Analytics Service", version="1.0.0")
+app = FastAPI(title="FD Management Analytics Service", version="1.0.0")
 
 app.include_router(router)
 

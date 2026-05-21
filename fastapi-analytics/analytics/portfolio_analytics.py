@@ -12,59 +12,29 @@ def generate_analytics(req: AnalyticsRequest) -> AnalyticsResponse:
         recommendation=recommendation
     )
 
+PERSONA_VECTORS: dict[str, dict[str, float]] = {
+    "Conservative Saver": {"liq": 80, "spread": 70, "penalty": 20, "conc": 70, "ladder": 75},
+    "Liquidity Risk User": {"liq": 15, "spread": 30, "penalty": 80, "conc": 40, "ladder": 25},
+    "Long-Term Planner":  {"liq": 40, "spread": 60, "penalty": 40, "conc": 65, "ladder": 70},
+    "Aggressive Reinvestor": {"liq": 20, "spread": 40, "penalty": 55, "conc": 30, "ladder": 35},
+    "Balanced Investor":  {"liq": 60, "spread": 60, "penalty": 35, "conc": 65, "ladder": 65},
+}
+
+def euclidean_distance(a: dict[str, float], b: dict[str, float]) -> float:
+    return sum((a[k] - b[k]) ** 2 for k in b) ** 0.5
+
+def nearest_persona(profile: dict[str, float], vectors: dict = PERSONA_VECTORS) -> str:
+    return min(vectors, key=lambda name: euclidean_distance(profile, vectors[name]))
+
 def _assign_persona(req: AnalyticsRequest) -> str:
-    liq     = req.liquidityScore
-    spread  = req.maturitySpreadScore
-    penalty = req.penaltyExposure
-    conc    = req.concentrationRisk
-    ladder  = req.ladderScore
-
-    total = len(req.fds)
-    long_count = sum(1 for fd in req.fds if fd.fdType == "LONG_TERM")
-    long_ratio = long_count / total if total > 0 else 0
-
-    personas = {
-        "Conservative Saver": {
-            "liq": 80, "spread": 70, "penalty": 20, "conc": 70, "ladder": 75
-        },
-        "Liquidity Risk User": {
-            "liq": 15, "spread": 30, "penalty": 80, "conc": 40, "ladder": 25
-        },
-        "Long-Term Planner": {
-            "liq": 40, "spread": 60, "penalty": 40, "conc": 65, "ladder": 70
-        },
-        "Aggressive Reinvestor": {
-            "liq": 20, "spread": 40, "penalty": 55, "conc": 30, "ladder": 35
-        },
-        "Balanced Investor": {
-            "liq": 60, "spread": 60, "penalty": 35, "conc": 65, "ladder": 65
-        },
-    }
-
-    user_profile = {
-        "liq": liq, "spread": spread,
-        "penalty": penalty, "conc": conc, "ladder": ladder
-    }
-
-    best_persona = "Balanced Investor"
-    best_distance = float("inf")
-
-    for name, ideal in personas.items():
-        distance = sum(
-            (user_profile[k] - ideal[k]) ** 2
-            for k in ideal
-        ) ** 0.5
-        if distance < best_distance:
-            best_distance = distance
-            best_persona = name
-
-    if penalty > 70:
+    if req.penaltyExposure > 70:
         return "Liquidity Risk User"
-
-    if long_ratio >= 0.8 and ladder > 65:
+    long_ratio = sum(1 for fd in req.fds if fd.fdType == "LONG_TERM") / len(req.fds) if req.fds else 0
+    if long_ratio >= 0.8 and req.ladderScore > 65:
         return "Long-Term Planner"
-
-    return best_persona
+    profile = {"liq": req.liquidityScore, "spread": req.maturitySpreadScore,
+               "penalty": req.penaltyExposure, "conc": req.concentrationRisk, "ladder": req.ladderScore}
+    return nearest_persona(profile)
 
 
 def _generate_recommendation(req: AnalyticsRequest) -> str:
@@ -163,41 +133,24 @@ def _generate_recommendation(req: AnalyticsRequest) -> str:
     return " | ".join(tips)
 
 
+def select_weights(expense_ratio: float, fd_count: int) -> dict[str, float]:
+    if fd_count <= 2:
+        return {"liq": 0.25, "spread": 0.25, "ladder": 0.25, "conc": 0.15, "penalty": 0.10}
+    elif expense_ratio > 0.6:
+        return {"liq": 0.40, "spread": 0.15, "ladder": 0.15, "conc": 0.15, "penalty": 0.15}
+    else:
+        return {"liq": 0.30, "spread": 0.20, "ladder": 0.20, "conc": 0.15, "penalty": 0.15}
+
 def _calc_health_score(req: AnalyticsRequest) -> float:
-    liq     = req.liquidityScore
-    spread  = req.maturitySpreadScore
-    penalty = req.penaltyExposure
-    conc    = req.concentrationRisk
-    ladder  = req.ladderScore
-
     expense_ratio = req.monthlyExpenses / req.monthlyIncome if req.monthlyIncome > 0 else 0.5
-    w_liq    = 0.30
-    w_spread = 0.20
-    w_ladder = 0.20
-    w_conc   = 0.15
-    w_penalty = 0.15
+    w = select_weights(expense_ratio, len(req.fds))
 
-    if expense_ratio > 0.6:
-        w_liq    = 0.40
-        w_spread = 0.15
-        w_ladder = 0.15
-        w_conc   = 0.15
-        w_penalty = 0.15
-
-    if len(req.fds) <= 2:
-        w_liq    = 0.25
-        w_spread = 0.25
-        w_ladder = 0.25
-        w_conc   = 0.15
-        w_penalty = 0.10
-
-    penalty_health = 100 - penalty
-
+    penalty_health = 100 - req.penaltyExposure
     score = (
-        liq     * w_liq +
-        spread  * w_spread +
-        ladder  * w_ladder +
-        conc    * w_conc +
-        penalty_health * w_penalty
+        req.liquidityScore       * w["liq"]     +
+        req.maturitySpreadScore  * w["spread"]   +
+        req.ladderScore          * w["ladder"]   +
+        req.concentrationRisk    * w["conc"]     +
+        penalty_health           * w["penalty"]
     )
     return min(max(score, 0), 100)
