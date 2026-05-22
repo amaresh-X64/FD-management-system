@@ -1,14 +1,15 @@
 package handlers
 
 import (
-	"fd-management/go-risk-engine/models"
+	"fd-management/go-risk-engine/dto"
 	"fd-management/go-risk-engine/services"
 	"net/http"
+
 	"github.com/gin-gonic/gin"
 )
 
 func AnalyzeRisk(c *gin.Context) {
-	var req models.RiskRequest
+	var req dto.RiskRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return

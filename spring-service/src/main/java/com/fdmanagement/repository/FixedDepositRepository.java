@@ -7,9 +7,6 @@ import org.springframework.data.repository.query.Param;
 import java.util.List;
 
 public interface FixedDepositRepository extends JpaRepository<FixedDeposit, Long> {
-
-
-
     @Query("SELECT fd FROM FixedDeposit fd WHERE fd.user.id = :userId AND fd.status = 'ACTIVE'")
     List<FixedDeposit> findActiveFdsByUserId(@Param("userId") Long userId);
 }

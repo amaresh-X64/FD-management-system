@@ -1,4 +1,4 @@
-package models
+package dto
 
 type RiskRequest struct {
 	MonthlyIncome   float64  `json:"monthlyIncome"`

@@ -6,6 +6,9 @@ import org.junit.jupiter.api.*;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.mockito.Mock;
 import org.mockito.junit.jupiter.MockitoExtension;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.client.HttpServerErrorException;
+import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestTemplate;
 
 import java.math.BigDecimal;
@@ -19,111 +22,177 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class GoRiskClientTest {
 
-    @Mock private RestTemplate restTemplate;
+	@Mock
+	private RestTemplate restTemplate;
 
-    private GoRiskClient client;
-    private User testUser;
+	private GoRiskClient client;
+	private User testUser;
 
-    @BeforeEach
-    void setUp() {
-        client = new GoRiskClient(restTemplate, "http://localhost:8081");
-        testUser = User.builder()
-                .id(1L).name("Arjun").email("arjun@example.com")
-                .monthlyIncome(new BigDecimal("80000"))
-                .monthlyExpenses(new BigDecimal("40000")).build();
-    }
+	@BeforeEach
+	void setUp() {
+		client = new GoRiskClient(restTemplate, "http://localhost:8081");
+		testUser = User.builder()
+				.id(1L).name("Arjun").email("lakshman@gmail.com")
+				.monthlyIncome(new BigDecimal("80000"))
+				.monthlyExpenses(new BigDecimal("40000")).build();
+	}
 
-    private static FixedDeposit buildFd(String type) {
-        return FixedDeposit.builder()
-                .id(1L).principal(new BigDecimal("200000"))
-                .interestRate(new BigDecimal("7.5")).durationMonths(12)
-                .startDate(LocalDate.of(2025, 1, 1))
-                .maturityDate(LocalDate.of(2026, 1, 1))
-                .fdType(type).status("ACTIVE").build();
-    }
+	private static FixedDeposit buildFd(String type) {
+		return FixedDeposit.builder()
+				.id(1L).principal(new BigDecimal("200000"))
+				.interestRate(new BigDecimal("7.5")).durationMonths(12)
+				.startDate(LocalDate.of(2025, 1, 1))
+				.maturityDate(LocalDate.of(2026, 1, 1))
+				.fdType(type).status("ACTIVE").build();
+	}
 
-    private static GoRiskClient.RiskResult buildResult(double liq) {
-        GoRiskClient.RiskResult r = new GoRiskClient.RiskResult();
-        r.liquidityScore      = BigDecimal.valueOf(liq);
-        r.maturitySpreadScore = BigDecimal.ZERO;
-        r.penaltyExposure     = BigDecimal.ZERO;
-        r.concentrationRisk   = BigDecimal.ZERO;
-        r.ladderScore         = BigDecimal.ZERO;
-        return r;
-    }
+	private static GoRiskClient.RiskResult buildResult(double liq) {
+		GoRiskClient.RiskResult r = new GoRiskClient.RiskResult();
+		r.liquidityScore = BigDecimal.valueOf(liq);
+		r.maturitySpreadScore = BigDecimal.ZERO;
+		r.penaltyExposure = BigDecimal.ZERO;
+		r.concentrationRisk = BigDecimal.ZERO;
+		r.ladderScore = BigDecimal.ZERO;
+		return r;
+	}
 
-    // ── analyze ───────────────────────────────────────────────────────────────
+	@Nested
+	@DisplayName("analyze")
+	class Analyze {
 
-    @Nested
-    @DisplayName("analyze")
-    class Analyze {
+		@Test
+		void shouldReturnDefaultZeroScores_whenInputIsNullResponseFromGoService() {
+			when(restTemplate.postForObject(
+					eq("http://localhost:8081/risk/analyze"),
+					argThat(body -> body instanceof java.util.Map),
+					eq(GoRiskClient.RiskResult.class)))
+					.thenReturn(null);
+			GoRiskClient.RiskResult result = client.analyze(testUser, List.of(buildFd("SHORT_TERM")));
 
-        @Test
-        void shouldReturnDefaultZeroScores_whenInputIsNullResponseFromGoService() {
-            when(restTemplate.postForObject(
-                    eq("http://localhost:8081/risk/analyze"),
-                    argThat(body -> body instanceof java.util.Map),
-                    eq(GoRiskClient.RiskResult.class)))
-                    .thenReturn(null);
+			assertThat(result.liquidityScore).isEqualByComparingTo(BigDecimal.ZERO);
+		}
 
-            GoRiskClient.RiskResult result = client.analyze(testUser, List.of(buildFd("SHORT_TERM")));
+		@Test
+		void shouldReturnAllZeroScores_whenInputIsNullResponseFromGoService() {
+			when(restTemplate.postForObject(anyString(), any(), eq(GoRiskClient.RiskResult.class)))
+					.thenReturn(null);
 
-            assertThat(result.liquidityScore).isEqualByComparingTo(BigDecimal.ZERO);
-        }
+			GoRiskClient.RiskResult result = client.analyze(testUser, List.of(buildFd("SHORT_TERM")));
 
-        @Test
-        void shouldReturnMappedLiquidityScore_whenInputIsValidResponseFromGoService() {
-            when(restTemplate.postForObject(
-                    eq("http://localhost:8081/risk/analyze"),
-                    argThat(body -> body instanceof java.util.Map),
-                    eq(GoRiskClient.RiskResult.class)))
-                    .thenReturn(buildResult(75.0));
+			assertThat(result.maturitySpreadScore).isEqualByComparingTo(BigDecimal.ZERO);
+			assertThat(result.penaltyExposure).isEqualByComparingTo(BigDecimal.ZERO);
+			assertThat(result.concentrationRisk).isEqualByComparingTo(BigDecimal.ZERO);
+			assertThat(result.ladderScore).isEqualByComparingTo(BigDecimal.ZERO);
+		}
 
-            GoRiskClient.RiskResult result = client.analyze(testUser, List.of(buildFd("SHORT_TERM")));
+		@Test
+		void shouldReturnMappedLiquidityScore_whenInputIsValidResponseFromGoService() {
+			when(restTemplate.postForObject(
+					eq("http://localhost:8081/risk/analyze"),
+					argThat(body -> body instanceof java.util.Map),
+					eq(GoRiskClient.RiskResult.class)))
+					.thenReturn(buildResult(75.0));
 
-            assertThat(result.liquidityScore.doubleValue()).isEqualTo(75.0);
-        }
+			GoRiskClient.RiskResult result = client.analyze(testUser, List.of(buildFd("SHORT_TERM")));
 
-        @Test
-        void shouldCallCorrectEndpoint_whenInputIsValidRequest() {
-            when(restTemplate.postForObject(
-                    eq("http://localhost:8081/risk/analyze"),
-                    argThat(body -> body instanceof java.util.Map),
-                    eq(GoRiskClient.RiskResult.class)))
-                    .thenReturn(new GoRiskClient.RiskResult());
+			assertThat(result.liquidityScore.doubleValue()).isEqualTo(75.0);
+		}
 
-            client.analyze(testUser, List.of(buildFd("LONG_TERM")));
+		@Test
+		void shouldCallCorrectEndpoint_whenInputIsValidRequest() {
+			when(restTemplate.postForObject(
+					eq("http://localhost:8081/risk/analyze"),
+					argThat(body -> body instanceof java.util.Map),
+					eq(GoRiskClient.RiskResult.class)))
+					.thenReturn(new GoRiskClient.RiskResult());
 
-            verify(restTemplate).postForObject(
-                    eq("http://localhost:8081/risk/analyze"),
-                    argThat(body -> body instanceof java.util.Map),
-                    eq(GoRiskClient.RiskResult.class));
-        }
+			client.analyze(testUser, List.of(buildFd("LONG_TERM")));
 
-        @Test
-        void shouldReturnNonNullResult_whenInputIsEmptyFdList() {
-            when(restTemplate.postForObject(
-                    eq("http://localhost:8081/risk/analyze"),
-                    argThat(body -> body instanceof java.util.Map),
-                    eq(GoRiskClient.RiskResult.class)))
-                    .thenReturn(new GoRiskClient.RiskResult());
+			verify(restTemplate).postForObject(
+					eq("http://localhost:8081/risk/analyze"),
+					argThat(body -> body instanceof java.util.Map),
+					eq(GoRiskClient.RiskResult.class));
+		}
 
-            GoRiskClient.RiskResult result = client.analyze(testUser, List.of());
+		@Test
+		void shouldReturnNonNullResult_whenInputIsEmptyFdList() {
+			when(restTemplate.postForObject(
+					eq("http://localhost:8081/risk/analyze"),
+					argThat(body -> body instanceof java.util.Map),
+					eq(GoRiskClient.RiskResult.class)))
+					.thenReturn(new GoRiskClient.RiskResult());
 
-            assertThat(result).isNotNull();
-        }
+			GoRiskClient.RiskResult result = client.analyze(testUser, List.of());
 
-        @Test
-        void shouldPropagateException_whenInputIsRestTemplateThrowingException() {
-            when(restTemplate.postForObject(
-                    eq("http://localhost:8081/risk/analyze"),
-                    argThat(body -> body instanceof java.util.Map),
-                    eq(GoRiskClient.RiskResult.class)))
-                    .thenThrow(new RuntimeException("Connection refused"));
+			assertThat(result).isNotNull();
+		}
 
-            assertThatThrownBy(() -> client.analyze(testUser, List.of(buildFd("SHORT_TERM"))))
-                    .isInstanceOf(RuntimeException.class)
-                    .hasMessageContaining("Connection refused");
-        }
-    }
+		@Test
+		void shouldPropagateException_whenInputIsRestTemplateThrowingRuntimeException() {
+			when(restTemplate.postForObject(
+					eq("http://localhost:8081/risk/analyze"),
+					argThat(body -> body instanceof java.util.Map),
+					eq(GoRiskClient.RiskResult.class)))
+					.thenThrow(new RuntimeException("Connection refused"));
+
+			assertThatThrownBy(() -> client.analyze(testUser, List.of(buildFd("SHORT_TERM"))))
+					.isInstanceOf(RuntimeException.class)
+					.hasMessageContaining("Connection refused");
+		}
+
+		@Test
+		void shouldPropagateHttpServerErrorException_whenInputIsGoServiceReturning500() {
+			when(restTemplate.postForObject(anyString(), any(), eq(GoRiskClient.RiskResult.class)))
+					.thenThrow(new HttpServerErrorException(HttpStatus.INTERNAL_SERVER_ERROR));
+
+			assertThatThrownBy(() -> client.analyze(testUser, List.of(buildFd("LONG_TERM"))))
+					.isInstanceOf(HttpServerErrorException.class);
+		}
+
+		@Test
+		void shouldPropagateResourceAccessException_whenInputIsUnreachableGoService() {
+			when(restTemplate.postForObject(anyString(), any(), eq(GoRiskClient.RiskResult.class)))
+					.thenThrow(new ResourceAccessException("Connection refused"));
+
+			assertThatThrownBy(() -> client.analyze(testUser, List.of()))
+					.isInstanceOf(ResourceAccessException.class)
+					.hasMessageContaining("Connection refused");
+		}
+
+		@Test
+		void shouldIncludeUserFinancialsInPayload_whenInputIsValidUser() {
+			when(restTemplate.postForObject(
+					eq("http://localhost:8081/risk/analyze"),
+					argThat(body -> {
+						@SuppressWarnings("unchecked")
+						var map = (java.util.Map<String, Object>) body;
+						return new BigDecimal("80000")
+								.compareTo((BigDecimal) map.get("monthlyIncome")) == 0
+								&& new BigDecimal("40000").compareTo((BigDecimal) map
+										.get("monthlyExpenses")) == 0;
+					}),
+					eq(GoRiskClient.RiskResult.class)))
+					.thenReturn(new GoRiskClient.RiskResult());
+
+			client.analyze(testUser, List.of(buildFd("SHORT_TERM")));
+
+			verify(restTemplate).postForObject(
+					eq("http://localhost:8081/risk/analyze"),
+					argThat(body -> body instanceof java.util.Map),
+					eq(GoRiskClient.RiskResult.class));
+		}
+
+		@Test
+		void shouldReturnNonNullResult_whenInputIsMultipleFds() {
+			when(restTemplate.postForObject(anyString(), any(), eq(GoRiskClient.RiskResult.class)))
+					.thenReturn(new GoRiskClient.RiskResult());
+
+			GoRiskClient.RiskResult result = client.analyze(testUser, List.of(
+					buildFd("SHORT_TERM"),
+					buildFd("LONG_TERM"),
+					buildFd("LONG_TERM")));
+
+			assertThat(result).isNotNull();
+		}
+	}
 }

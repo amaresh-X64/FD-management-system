@@ -1,7 +1,7 @@
 package services
 
 import (
-	"fd-management/go-risk-engine/models"
+	"fd-management/go-risk-engine/dto"
 	"testing"
 	"time"
 )
@@ -15,70 +15,68 @@ func assertExact(t *testing.T, expected, got float64) {
 
 var fixedNow = time.Date(2026, 5, 20, 0, 0, 0, 0, time.UTC)
 
-func singleShortFd(principal float64) models.FdItem {
-	return models.FdItem{ID: 1, Principal: principal, FdType: "SHORT_TERM",
+func singleShortFd(principal float64) dto.FdItem {
+	return dto.FdItem{ID: 1, Principal: principal, FdType: "SHORT_TERM",
 		DurationMonths: 6, MaturityDate: "2026-06-01"}
 }
 
-func singleLongFd(principal float64) models.FdItem {
-	return models.FdItem{ID: 1, Principal: principal, FdType: "LONG_TERM",
+func singleLongFd(principal float64) dto.FdItem {
+	return dto.FdItem{ID: 1, Principal: principal, FdType: "LONG_TERM",
 		DurationMonths: 36, MaturityDate: "2028-01-01"}
 }
 
-
 func Test_calcLiquidityScore_shouldReturn0_whenInputIsEmptyFdList(t *testing.T) {
-	req := models.RiskRequest{MonthlyIncome: 80000, MonthlyExpenses: 40000, Fds: []models.FdItem{}}
+	req := dto.RiskRequest{MonthlyIncome: 80000, MonthlyExpenses: 40000, Fds: []dto.FdItem{}}
 	assertExact(t, 0, calcLiquidityScore(req))
 }
 
 func Test_calcLiquidityScore_shouldReturn100_whenInputIsSingleShortTermFdCovers6MonthsOfExpenses(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 80000, MonthlyExpenses: 40000,
-		Fds: []models.FdItem{singleShortFd(240000)},
+		Fds: []dto.FdItem{singleShortFd(240000)},
 	}
 	assertExact(t, 100, calcLiquidityScore(req))
 }
 
 func Test_calcLiquidityScore_shouldReturn35_whenInputIsShortTermCovers1Point5MonthsAndSavingsRateIs50Pct(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 80000, MonthlyExpenses: 40000,
-		Fds: []models.FdItem{singleShortFd(60000)},
+		Fds: []dto.FdItem{singleShortFd(60000)},
 	}
 	assertExact(t, 35, calcLiquidityScore(req))
 }
 
 func Test_calcLiquidityScore_shouldReturn60_whenInputIsShortTermPrincipalCovers3MonthsAndSavingsRateIsHalf(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 80000, MonthlyExpenses: 40000,
-		Fds: []models.FdItem{singleShortFd(120000)},
+		Fds: []dto.FdItem{singleShortFd(120000)},
 	}
 	assertExact(t, 60, calcLiquidityScore(req))
 }
 
 func Test_calcLiquidityScore_shouldReturn10_whenInputIsOnlyLongTermFd(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 80000, MonthlyExpenses: 40000,
-		Fds: []models.FdItem{singleLongFd(500000)},
+		Fds: []dto.FdItem{singleLongFd(500000)},
 	}
 	assertExact(t, 10, calcLiquidityScore(req))
 }
 
 func Test_calcLiquidityScore_shouldReturn100_whenInputIsFullCoverageAndHighSavingsRate(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 100000, MonthlyExpenses: 20000,
-		Fds: []models.FdItem{singleShortFd(120000)},
+		Fds: []dto.FdItem{singleShortFd(120000)},
 	}
 	assertExact(t, 100, calcLiquidityScore(req))
 }
 
-
 func Test_calcMaturitySpreadScore_shouldReturn20_whenInputIsExactlyOneFd(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{singleShortFd(100000)}}
+	req := dto.RiskRequest{Fds: []dto.FdItem{singleShortFd(100000)}}
 	assertExact(t, 20, calcMaturitySpreadScore(req))
 }
 
 func Test_calcMaturitySpreadScore_shouldReturn0_whenInputIsThreeFdsMaturingOnIdenticalDate(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
 		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2026-06-01"},
@@ -87,7 +85,7 @@ func Test_calcMaturitySpreadScore_shouldReturn0_whenInputIsThreeFdsMaturingOnIde
 }
 
 func Test_calcMaturitySpreadScore_shouldReturn100_whenInputIsFourFdsMaturingExactlyOneYearApart(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2025-01-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2027-01-01"},
@@ -97,7 +95,7 @@ func Test_calcMaturitySpreadScore_shouldReturn100_whenInputIsFourFdsMaturingExac
 }
 
 func Test_calcMaturitySpreadScore_shouldReturn86Point84_whenInputIsThreeFdsWithUnevenGaps(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-07-01"},
 		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2027-07-01"},
@@ -105,16 +103,15 @@ func Test_calcMaturitySpreadScore_shouldReturn86Point84_whenInputIsThreeFdsWithU
 	assertExact(t, 86.84, calcMaturitySpreadScore(req))
 }
 
-
 func Test_calcPenaltyExposure_shouldReturn100_whenInputIsZeroMonthlyIncome(t *testing.T) {
-	req := models.RiskRequest{MonthlyIncome: 0, MonthlyExpenses: 40000, Fds: []models.FdItem{}}
+	req := dto.RiskRequest{MonthlyIncome: 0, MonthlyExpenses: 40000, Fds: []dto.FdItem{}}
 	assertExact(t, 100, calcPenaltyExposureAt(req, fixedNow))
 }
 
 func Test_calcPenaltyExposure_shouldReturn6_whenInputIsLowExpensesAndAlreadyMaturedShortTermFd(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 100000, MonthlyExpenses: 20000,
-		Fds: []models.FdItem{
+		Fds: []dto.FdItem{
 			{ID: 1, Principal: 200000, FdType: "SHORT_TERM",
 				DurationMonths: 3, MaturityDate: "2025-09-01"},
 		},
@@ -123,9 +120,9 @@ func Test_calcPenaltyExposure_shouldReturn6_whenInputIsLowExpensesAndAlreadyMatu
 }
 
 func Test_calcPenaltyExposure_shouldReturn73Point58_whenInputIsHighExpensesAndLongTermFdLockedUntil2029(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 80000, MonthlyExpenses: 72000,
-		Fds: []models.FdItem{
+		Fds: []dto.FdItem{
 			{ID: 1, Principal: 500000, FdType: "LONG_TERM",
 				DurationMonths: 48, MaturityDate: "2029-01-01"},
 		},
@@ -134,21 +131,20 @@ func Test_calcPenaltyExposure_shouldReturn73Point58_whenInputIsHighExpensesAndLo
 }
 
 func Test_calcPenaltyExposure_shouldReturn66Point42_whenInputIsExpensesExceedingIncomeAndFdMaturingIn2028(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 10000, MonthlyExpenses: 99999,
-		Fds: []models.FdItem{singleLongFd(500000)},
+		Fds: []dto.FdItem{singleLongFd(500000)},
 	}
 	assertExact(t, 66.42, calcPenaltyExposureAt(req, fixedNow))
 }
 
-
 func Test_calcConcentrationRisk_shouldReturn0_whenInputIsSingleFdWithPrincipal500000(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{singleShortFd(500000)}}
+	req := dto.RiskRequest{Fds: []dto.FdItem{singleShortFd(500000)}}
 	assertExact(t, 0, calcConcentrationRisk(req))
 }
 
 func Test_calcConcentrationRisk_shouldReturn75_whenInputIsFourFdsWithEqualPrincipal(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-07-01"},
 		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2027-01-01"},
@@ -157,7 +153,7 @@ func Test_calcConcentrationRisk_shouldReturn75_whenInputIsFourFdsWithEqualPrinci
 	assertExact(t, 75, calcConcentrationRisk(req))
 }
 func Test_calcConcentrationRisk_shouldReturn37Point50_whenInputIsTwoUnequalFdsBothBelowDICGCLimit(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 300000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 	}}
@@ -165,7 +161,7 @@ func Test_calcConcentrationRisk_shouldReturn37Point50_whenInputIsTwoUnequalFdsBo
 }
 
 func Test_calcConcentrationRisk_shouldReturn22Point78_whenInputIsOneFdExceedingDICGCLimitOf500000(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 1000000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
 		{ID: 2, Principal: 200000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 	}}
@@ -173,7 +169,7 @@ func Test_calcConcentrationRisk_shouldReturn22Point78_whenInputIsOneFdExceedingD
 }
 
 func Test_calcConcentrationRisk_shouldReturn44Point44_whenInputIsBothFdsBelowDICGCLimit(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 400000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
 		{ID: 2, Principal: 200000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 	}}
@@ -181,11 +177,11 @@ func Test_calcConcentrationRisk_shouldReturn44Point44_whenInputIsBothFdsBelowDIC
 }
 
 func Test_calcConcentrationRisk_shouldReturnLowerScore_whenInputIsFdBreachingDICGCLimitVsNoBreach(t *testing.T) {
-	reqBreach := models.RiskRequest{Fds: []models.FdItem{
+	reqBreach := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 1000000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
 		{ID: 2, Principal: 200000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 	}}
-	reqNoBreach := models.RiskRequest{Fds: []models.FdItem{
+	reqNoBreach := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 400000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
 		{ID: 2, Principal: 200000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 	}}
@@ -196,14 +192,13 @@ func Test_calcConcentrationRisk_shouldReturnLowerScore_whenInputIsFdBreachingDIC
 	}
 }
 
-
 func Test_calcLadderScore_shouldReturn15_whenInputIsExactlyOneFd(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{singleLongFd(200000)}}
+	req := dto.RiskRequest{Fds: []dto.FdItem{singleLongFd(200000)}}
 	assertExact(t, 15, calcLadderScore(req))
 }
 
 func Test_calcLadderScore_shouldReturn99Point97_whenInputIsFourFdsMaturingOneYearApartOverThreeYears(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2025-06-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
 		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2027-06-01"},
@@ -213,7 +208,7 @@ func Test_calcLadderScore_shouldReturn99Point97_whenInputIsFourFdsMaturingOneYea
 }
 
 func Test_calcLadderScore_shouldReturn58_whenInputIsTwoFdsMaturingExactlyOneYearApart(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 200000, FdType: "SHORT_TERM", MaturityDate: "2025-06-01"},
 		{ID: 2, Principal: 200000, FdType: "LONG_TERM", MaturityDate: "2026-06-01"},
 	}}
@@ -221,7 +216,7 @@ func Test_calcLadderScore_shouldReturn58_whenInputIsTwoFdsMaturingExactlyOneYear
 }
 
 func Test_calcLadderScore_shouldReturn67Point31_whenInputIsThreeFdsMaturingWithin29DaysOfEachOther(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-15"},
 		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2026-06-30"},
@@ -230,7 +225,7 @@ func Test_calcLadderScore_shouldReturn67Point31_whenInputIsThreeFdsMaturingWithi
 }
 
 func Test_calcLadderScore_shouldReturnScoreNear100_whenInputIsSpanOfExactly4Years(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2025-01-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-01-01"},
 		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
@@ -243,7 +238,7 @@ func Test_calcLadderScore_shouldReturnScoreNear100_whenInputIsSpanOfExactly4Year
 }
 
 func Test_calcLadderScore_shouldReturnScoreBelow100_whenInputIsSpanExceeding5Years(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2022-01-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2024-01-01"},
 		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2026-01-01"},
@@ -255,11 +250,10 @@ func Test_calcLadderScore_shouldReturnScoreBelow100_whenInputIsSpanExceeding5Yea
 	}
 }
 
-
 func Test_analyzeRisk_shouldReturnAllFiveScoresBetween0And100_whenInputIsRealisticPortfolio(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 80000, MonthlyExpenses: 40000,
-		Fds: []models.FdItem{
+		Fds: []dto.FdItem{
 			{ID: 1, Principal: 200000, FdType: "SHORT_TERM",
 				DurationMonths: 6, MaturityDate: "2026-01-01"},
 			{ID: 2, Principal: 300000, FdType: "LONG_TERM",
@@ -284,17 +278,17 @@ func Test_analyzeRisk_shouldReturnAllFiveScoresBetween0And100_whenInputIsRealist
 }
 
 func Test_calcLiquidityScore_shouldReturn0_whenInputIsOnlyLongTermFdAndZeroIncome(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 0, MonthlyExpenses: 40000,
-		Fds: []models.FdItem{singleLongFd(500000)},
+		Fds: []dto.FdItem{singleLongFd(500000)},
 	}
 	assertExact(t, 0, calcLiquidityScore(req))
 }
 
 func Test_calcPenaltyExposure_shouldReturn49Point03_whenInputIsHighBurdenNoShortTermFdsAndFdMaturingSoon(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 80000, MonthlyExpenses: 72000,
-		Fds: []models.FdItem{
+		Fds: []dto.FdItem{
 			{ID: 1, Principal: 500000, FdType: "LONG_TERM",
 				DurationMonths: 2, MaturityDate: "2026-08-01"},
 		},
@@ -303,9 +297,9 @@ func Test_calcPenaltyExposure_shouldReturn49Point03_whenInputIsHighBurdenNoShort
 }
 
 func Test_calcPenaltyExposure_shouldReturn73Point00_whenInputIsLowBurdenAndVeryLongLockedFd(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 100000, MonthlyExpenses: 10000,
-		Fds: []models.FdItem{
+		Fds: []dto.FdItem{
 			{ID: 1, Principal: 500000, FdType: "LONG_TERM",
 				DurationMonths: 108, MaturityDate: "2035-01-01"},
 		},
@@ -314,7 +308,7 @@ func Test_calcPenaltyExposure_shouldReturn73Point00_whenInputIsLowBurdenAndVeryL
 }
 
 func Test_calcLadderScore_shouldReturn68_whenInputIsThreeFdsMaturingWithinSameMonth(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{
+	req := dto.RiskRequest{Fds: []dto.FdItem{
 		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
 		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2026-06-11"},
 		{ID: 3, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2026-06-21"},
@@ -322,78 +316,74 @@ func Test_calcLadderScore_shouldReturn68_whenInputIsThreeFdsMaturingWithinSameMo
 	assertExact(t, 68, calcLadderScore(req))
 }
 
-
-
-
 func Test_calcConcentrationRisk_shouldReturn0_whenInputIsAllFdsWithZeroPrincipal(t *testing.T) {
-    req := models.RiskRequest{Fds: []models.FdItem{
-        {ID: 1, Principal: 0, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
-        {ID: 2, Principal: 0, FdType: "LONG_TERM", MaturityDate: "2027-01-01"},
-    }}
-    assertExact(t, 0, calcConcentrationRisk(req))
+	req := dto.RiskRequest{Fds: []dto.FdItem{
+		{ID: 1, Principal: 0, FdType: "SHORT_TERM", MaturityDate: "2026-06-01"},
+		{ID: 2, Principal: 0, FdType: "LONG_TERM", MaturityDate: "2027-01-01"},
+	}}
+	assertExact(t, 0, calcConcentrationRisk(req))
 }
-// spanYears > 7 → default coverageScore=60 branch
+
 func Test_calcLadderScore_shouldReturnScoreBelow80_whenInputIsSpanExceeding7Years(t *testing.T) {
-    req := models.RiskRequest{Fds: []models.FdItem{
-        {ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2020-01-01"},
-        {ID: 2, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
-    }}
-    score := calcLadderScore(req)
-    if score >= 80 {
-        t.Errorf("expected score below 80 for >7yr span (default branch), got %.2f", score)
-    }
+	req := dto.RiskRequest{Fds: []dto.FdItem{
+		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "2020-01-01"},
+		{ID: 2, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "2028-01-01"},
+	}}
+	score := calcLadderScore(req)
+	if score >= 80 {
+		t.Errorf("expected score below 80 for >7yr span (default branch), got %.2f", score)
+	}
 }
 
 func Test_calcMaturitySpreadScore_shouldReturn20_whenInputIsOneFdWithInvalidMaturityDate(t *testing.T) {
-    req := models.RiskRequest{Fds: []models.FdItem{
-        {ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "INVALID"},
-        {ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "INVALID"},
-    }}
-    assertExact(t, 20, calcMaturitySpreadScore(req))
+	req := dto.RiskRequest{Fds: []dto.FdItem{
+		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "INVALID"},
+		{ID: 2, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "INVALID"},
+	}}
+	assertExact(t, 20, calcMaturitySpreadScore(req))
 }
 
 func Test_calcPenaltyExposure_shouldReturn35_whenInputIsInvalidMaturityDateFd(t *testing.T) {
-    req := models.RiskRequest{
-        MonthlyIncome: 80000, MonthlyExpenses: 40000,
-        Fds: []models.FdItem{
-            {ID: 1, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "INVALID"},
-        },
-    }
-    assertExact(t, 35, calcPenaltyExposureAt(req, fixedNow))
+	req := dto.RiskRequest{
+		MonthlyIncome: 80000, MonthlyExpenses: 40000,
+		Fds: []dto.FdItem{
+			{ID: 1, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "INVALID"},
+		},
+	}
+	assertExact(t, 35, calcPenaltyExposureAt(req, fixedNow))
 }
 
 func Test_calcLadderScore_shouldReturn15_whenInputIsAllFdsWithInvalidMaturityDate(t *testing.T) {
-    req := models.RiskRequest{Fds: []models.FdItem{
-        {ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "INVALID"},
-        {ID: 2, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "INVALID"},
-    }}
-    assertExact(t, 15, calcLadderScore(req))
+	req := dto.RiskRequest{Fds: []dto.FdItem{
+		{ID: 1, Principal: 100000, FdType: "SHORT_TERM", MaturityDate: "INVALID"},
+		{ID: 2, Principal: 100000, FdType: "LONG_TERM", MaturityDate: "INVALID"},
+	}}
+	assertExact(t, 15, calcLadderScore(req))
 }
 
 func Test_calcLiquidityScore_shouldReturn0_whenInputIsZeroMonthlyExpenses(t *testing.T) {
-	req := models.RiskRequest{
+	req := dto.RiskRequest{
 		MonthlyIncome: 80000, MonthlyExpenses: 0,
-		Fds: []models.FdItem{singleShortFd(240000)},
+		Fds: []dto.FdItem{singleShortFd(240000)},
 	}
 	assertExact(t, 0, calcLiquidityScore(req))
 }
 
 func Test_calcLiquidityScore_shouldCapSavingsBonusAt10_whenInputIsVeryHighSavingsRate(t *testing.T) {
-	// savingsRate = (100000-10000)/100000 = 0.9 → savingsRate*20 = 18, capped at 10
-	// short principal 30000 → monthsCovered=3 → base=50 → total=60
-	req := models.RiskRequest{
+	
+	req := dto.RiskRequest{
 		MonthlyIncome: 100000, MonthlyExpenses: 10000,
-		Fds: []models.FdItem{singleShortFd(30000)},
+		Fds: []dto.FdItem{singleShortFd(30000)},
 	}
 	assertExact(t, 60, calcLiquidityScore(req))
 }
 
 func Test_calcMaturitySpreadScore_shouldReturn0_whenInputIsEmptyFdList(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{}}
+	req := dto.RiskRequest{Fds: []dto.FdItem{}}
 	assertExact(t, 0, calcMaturitySpreadScore(req))
 }
 
 func Test_calcLadderScore_shouldReturn0_whenInputIsEmptyFdList(t *testing.T) {
-	req := models.RiskRequest{Fds: []models.FdItem{}}
+	req := dto.RiskRequest{Fds: []dto.FdItem{}}
 	assertExact(t, 0, calcLadderScore(req))
 }

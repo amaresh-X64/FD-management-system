@@ -23,26 +23,31 @@ import static org.mockito.Mockito.*;
 @ExtendWith(MockitoExtension.class)
 class FdServiceTest {
 
-    @Mock private FixedDepositRepository fdRepository;
-    @Mock private UserRepository userRepository;
-    @Mock private UserFinancialProfileRepository profileRepository;
-    @Mock private WithdrawalLogRepository withdrawalLogRepository;
-    @Mock private GoRiskClient goRiskClient;
-    @Mock private FastApiClient fastApiClient;
+    @Mock
+    private FixedDepositRepository fdRepository;
+    @Mock
+    private UserRepository userRepository;
+    @Mock
+    private UserFinancialProfileRepository profileRepository;
+    @Mock
+    private WithdrawalLogRepository withdrawalLogRepository;
+    @Mock
+    private GoRiskClient goRiskClient;
+    @Mock
+    private FastApiClient fastApiClient;
 
-    @InjectMocks private FdService fdService;
+    @InjectMocks
+    private FdService fdService;
 
     private User testUser;
 
     @BeforeEach
     void setUp() {
-        testUser = User.builder().id(1L).name("Arjun Kumar")
-                .email("arjun@example.com")
+        testUser = User.builder().id(1L).name("Amaresh")
+                .email("lakshman@gmail.com")
                 .monthlyIncome(new BigDecimal("80000"))
                 .monthlyExpenses(new BigDecimal("40000")).build();
     }
-
-    // ── helpers ──────────────────────────────────────────────────────────────
 
     private FixedDeposit savedFd(FixedDeposit fd) {
         return FixedDeposit.builder().id(1L).user(testUser)
@@ -53,8 +58,17 @@ class FdServiceTest {
     }
 
     private FixedDeposit activeFd(BigDecimal principal, String type,
-                                   LocalDate start, LocalDate maturity) {
+            LocalDate start, LocalDate maturity) {
         return FixedDeposit.builder().id(1L).user(testUser)
+                .principal(principal).interestRate(new BigDecimal("7.5"))
+                .maturityAmount(new BigDecimal("215000"))
+                .durationMonths(24).startDate(start).maturityDate(maturity)
+                .fdType(type).status("ACTIVE").build();
+    }
+
+    private FixedDeposit activeFdWithId(long id, BigDecimal principal, String type,
+            LocalDate start, LocalDate maturity) {
+        return FixedDeposit.builder().id(id).user(testUser)
                 .principal(principal).interestRate(new BigDecimal("7.5"))
                 .maturityAmount(new BigDecimal("215000"))
                 .durationMonths(24).startDate(start).maturityDate(maturity)
@@ -75,21 +89,19 @@ class FdServiceTest {
 
     private void stubAnalytics(String persona) {
         GoRiskClient.RiskResult risk = new GoRiskClient.RiskResult();
-        risk.liquidityScore      = new BigDecimal("75");
+        risk.liquidityScore = new BigDecimal("75");
         risk.maturitySpreadScore = new BigDecimal("65");
-        risk.penaltyExposure     = new BigDecimal("25");
-        risk.concentrationRisk   = new BigDecimal("70");
-        risk.ladderScore         = new BigDecimal("80");
+        risk.penaltyExposure = new BigDecimal("25");
+        risk.concentrationRisk = new BigDecimal("70");
+        risk.ladderScore = new BigDecimal("80");
         when(goRiskClient.analyze(eq(testUser), anyList())).thenReturn(risk);
 
         FastApiClient.AnalyticsResult analytics = new FastApiClient.AnalyticsResult();
-        analytics.persona              = persona;
+        analytics.persona = persona;
         analytics.portfolioHealthScore = new BigDecimal("78");
-        analytics.recommendation       = "Looking good";
+        analytics.recommendation = "Looking good";
         when(fastApiClient.generate(eq(testUser), anyList(), eq(risk))).thenReturn(analytics);
     }
-
-    // ── calculateMaturityAmount ───────────────────────────────────────────────
 
     @Nested
     @DisplayName("calculateMaturityAmount")
@@ -122,9 +134,34 @@ class FdServiceTest {
                     new BigDecimal("100000"), new BigDecimal("8.0"), 6);
             assertThat(result).isBetween(new BigDecimal("103900.00"), new BigDecimal("103950.00"));
         }
-    }
 
-    // ── saveFd ────────────────────────────────────────────────────────────────
+        @Test
+        void shouldReturnHigherAmount_whenInputIsLongerDurationAtSameRate() {
+            BigDecimal shortTerm = fdService.calculateMaturityAmount(
+                    new BigDecimal("100000"), new BigDecimal("7.5"), 12);
+            BigDecimal longTerm = fdService.calculateMaturityAmount(
+                    new BigDecimal("100000"), new BigDecimal("7.5"), 36);
+            assertThat(longTerm).isGreaterThan(shortTerm);
+        }
+
+        @Test
+        void shouldReturnHigherAmount_whenInputIsHigherInterestRateAtSameDuration() {
+            BigDecimal low = fdService.calculateMaturityAmount(
+                    new BigDecimal("100000"), new BigDecimal("5.0"), 12);
+            BigDecimal high = fdService.calculateMaturityAmount(
+                    new BigDecimal("100000"), new BigDecimal("10.0"), 12);
+            assertThat(high).isGreaterThan(low);
+        }
+
+        @Test
+        void shouldScaleLinearly_whenInputIsDoubledPrincipalAtSameRateAndDuration() {
+            BigDecimal single = fdService.calculateMaturityAmount(
+                    new BigDecimal("100000"), new BigDecimal("7.5"), 12);
+            BigDecimal doubled = fdService.calculateMaturityAmount(
+                    new BigDecimal("200000"), new BigDecimal("7.5"), 12);
+            assertThat(doubled).isEqualByComparingTo(single.multiply(new BigDecimal("2")));
+        }
+    }
 
     @Nested
     @DisplayName("saveFd")
@@ -139,6 +176,19 @@ class FdServiceTest {
             FdResponse r = fdService.saveFd(new CreateFdRequest(
                     1L, new BigDecimal("200000"), new BigDecimal("7.5"),
                     12, LocalDate.of(2025, 1, 1)));
+
+            assertThat(r.fdType).isEqualTo("SHORT_TERM");
+        }
+
+        @Test
+        void shouldAssignShortTermType_whenInputIsDurationOfExactly1Month() {
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(fdRepository.save(argThat(fd -> fd.getUser().equals(testUser))))
+                    .thenAnswer(inv -> savedFd(inv.getArgument(0)));
+
+            FdResponse r = fdService.saveFd(new CreateFdRequest(
+                    1L, new BigDecimal("100000"), new BigDecimal("7.5"),
+                    1, LocalDate.of(2025, 1, 1)));
 
             assertThat(r.fdType).isEqualTo("SHORT_TERM");
         }
@@ -170,6 +220,32 @@ class FdServiceTest {
         }
 
         @Test
+        void shouldSetMaturityDateCorrectly_whenInputIs36MonthDuration() {
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(fdRepository.save(argThat(fd -> fd.getUser().equals(testUser))))
+                    .thenAnswer(inv -> savedFd(inv.getArgument(0)));
+
+            FdResponse r = fdService.saveFd(new CreateFdRequest(
+                    1L, new BigDecimal("200000"), new BigDecimal("7.5"),
+                    36, LocalDate.of(2025, 6, 1)));
+
+            assertThat(r.maturityDate).isEqualTo(LocalDate.of(2028, 6, 1));
+        }
+
+        @Test
+        void shouldSetStatusToActive_whenInputIsNewFdRequest() {
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(fdRepository.save(argThat(fd -> fd.getUser().equals(testUser))))
+                    .thenAnswer(inv -> savedFd(inv.getArgument(0)));
+
+            FdResponse r = fdService.saveFd(new CreateFdRequest(
+                    1L, new BigDecimal("100000"), new BigDecimal("7.5"),
+                    12, LocalDate.of(2025, 1, 1)));
+
+            assertThat(r.status).isEqualTo("ACTIVE");
+        }
+
+        @Test
         void shouldThrowRuntimeException_whenInputIsUnknownUserId() {
             when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
@@ -180,8 +256,6 @@ class FdServiceTest {
                     .hasMessageContaining("User not found: 99");
         }
     }
-
-    // ── saveWithdrawal ────────────────────────────────────────────────────────
 
     @Nested
     @DisplayName("saveWithdrawal")
@@ -201,6 +275,19 @@ class FdServiceTest {
         }
 
         @Test
+        void shouldReturnOnePercentPenalty_whenInputIsActiveFdWithPrincipalOf500000() {
+            FixedDeposit fd = activeFd(new BigDecimal("500000"), "LONG_TERM",
+                    LocalDate.of(2024, 1, 1), LocalDate.of(2027, 1, 1));
+            when(fdRepository.findById(1L)).thenReturn(Optional.of(fd));
+            when(fdRepository.save(argThat(f -> "WITHDRAWN".equals(f.getStatus())))).thenReturn(fd);
+            when(withdrawalLogRepository.save(argThat(l -> "PREMATURE".equals(l.getWithdrawalType()))))
+                    .thenReturn(new WithdrawalLog());
+
+            assertThat(fdService.saveWithdrawal(1L).penaltyAmount)
+                    .isEqualByComparingTo(new BigDecimal("5000.00"));
+        }
+
+        @Test
         void shouldReturnNetPayoutEqualToPrincipalPlusInterestMinusPenalty_whenInputIsActiveFd() {
             FixedDeposit fd = activeFd(new BigDecimal("100000"), "SHORT_TERM",
                     LocalDate.now().minusMonths(6), LocalDate.now().plusMonths(6));
@@ -212,6 +299,19 @@ class FdServiceTest {
             WithdrawResponse r = fdService.saveWithdrawal(1L);
             assertThat(r.netPayout)
                     .isEqualByComparingTo(r.principal.add(r.interestEarned).subtract(r.penaltyAmount));
+        }
+
+        @Test
+        void shouldReturnNonNegativeNetPayout_whenInputIsFdHeldForSixMonths() {
+            FixedDeposit fd = activeFd(new BigDecimal("100000"), "LONG_TERM",
+                    LocalDate.now().minusMonths(6), LocalDate.now().plusMonths(18));
+            when(fdRepository.findById(1L)).thenReturn(Optional.of(fd));
+            when(fdRepository.save(argThat(f -> "WITHDRAWN".equals(f.getStatus())))).thenReturn(fd);
+            when(withdrawalLogRepository.save(argThat(l -> "PREMATURE".equals(l.getWithdrawalType()))))
+                    .thenReturn(new WithdrawalLog());
+
+            assertThat(fdService.saveWithdrawal(1L).netPayout)
+                    .isGreaterThanOrEqualTo(BigDecimal.ZERO);
         }
 
         @Test
@@ -289,8 +389,6 @@ class FdServiceTest {
         }
     }
 
-    // ── getPortfolio ──────────────────────────────────────────────────────────
-
     @Nested
     @DisplayName("getPortfolio")
     class GetPortfolio {
@@ -340,6 +438,41 @@ class FdServiceTest {
         }
 
         @Test
+        void shouldReturnSummedPrincipal_whenInputIsUserWithThreeActiveFds() {
+            FixedDeposit fd1 = activeFdWithId(1L, new BigDecimal("100000"), "SHORT_TERM",
+                    LocalDate.of(2025, 1, 1), LocalDate.of(2026, 1, 1));
+            fd1.setMaturityAmount(new BigDecimal("107500.00"));
+            FixedDeposit fd2 = activeFdWithId(2L, new BigDecimal("200000"), "LONG_TERM",
+                    LocalDate.of(2025, 1, 1), LocalDate.of(2027, 1, 1));
+            fd2.setMaturityAmount(new BigDecimal("231250.00"));
+            FixedDeposit fd3 = activeFdWithId(3L, new BigDecimal("150000"), "LONG_TERM",
+                    LocalDate.of(2025, 1, 1), LocalDate.of(2028, 1, 1));
+            fd3.setMaturityAmount(new BigDecimal("178500.00"));
+
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(fdRepository.findActiveFdsByUserId(1L)).thenReturn(List.of(fd1, fd2, fd3));
+            when(profileRepository.findById(1L)).thenReturn(Optional.empty());
+
+            PortfolioResponse r = fdService.getPortfolio(1L);
+            assertThat(r.totalPrincipal).isEqualByComparingTo(new BigDecimal("450000"));
+            assertThat(r.totalMaturityValue).isEqualByComparingTo(new BigDecimal("517250.00"));
+        }
+
+        @Test
+        void shouldReturnAllFdsInList_whenInputIsUserWithTwoActiveFds() {
+            FixedDeposit fd1 = activeFdWithId(1L, new BigDecimal("100000"), "SHORT_TERM",
+                    LocalDate.of(2025, 1, 1), LocalDate.of(2026, 1, 1));
+            FixedDeposit fd2 = activeFdWithId(2L, new BigDecimal("200000"), "LONG_TERM",
+                    LocalDate.of(2025, 1, 1), LocalDate.of(2027, 1, 1));
+
+            when(userRepository.findById(1L)).thenReturn(Optional.of(testUser));
+            when(fdRepository.findActiveFdsByUserId(1L)).thenReturn(List.of(fd1, fd2));
+            when(profileRepository.findById(1L)).thenReturn(Optional.empty());
+
+            assertThat(fdService.getPortfolio(1L).activeFds).hasSize(2);
+        }
+
+        @Test
         void shouldThrowRuntimeException_whenInputIsUnknownUserId() {
             when(userRepository.findById(99L)).thenReturn(Optional.empty());
 
@@ -348,8 +481,6 @@ class FdServiceTest {
                     .hasMessageContaining("User not found: 99");
         }
     }
-
-    // ── triggerAnalyticsRefresh (via createFd / withdrawFd) ──────────────────
 
     @Nested
     @DisplayName("triggerAnalyticsRefresh")

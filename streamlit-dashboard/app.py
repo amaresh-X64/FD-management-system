@@ -488,8 +488,8 @@ elif page == "➕ Create User":
     with st.form("create_user_form"):
         c1, c2 = st.columns(2)
         with c1:
-            name  = st.text_input("Full Name", placeholder="Arjun Kumar")
-            email = st.text_input("Email", placeholder="arjun@example.com")
+            name  = st.text_input("Full Name", placeholder="Amaresh")
+            email = st.text_input("Email", placeholder="lakshman@gmail.com")
         with c2:
             income   = st.number_input("Monthly Income (₹)", min_value=1000, value=80000, step=1000)
             expenses = st.number_input("Monthly Expenses (₹)", min_value=500, value=40000, step=500)

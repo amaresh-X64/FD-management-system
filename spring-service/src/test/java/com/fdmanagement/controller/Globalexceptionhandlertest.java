@@ -31,7 +31,6 @@ class GlobalExceptionHandlerTest {
                 .build();
     }
 
-    // ── RuntimeException handler ──────────────────────────────────────────────
 
     @Nested
     @DisplayName("handleRuntimeException")
@@ -58,7 +57,6 @@ class GlobalExceptionHandlerTest {
         }
     }
 
-    // ── generic Exception handler ─────────────────────────────────────────────
 
     @Nested
     @DisplayName("handleGenericException")

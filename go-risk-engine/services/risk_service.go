@@ -1,13 +1,13 @@
 package services
 
 import (
-	"fd-management/go-risk-engine/models"
+	"fd-management/go-risk-engine/dto"
 	"math"
 	"sort"
 	"time"
 )
 
-func AnalyzeRisk(req models.RiskRequest) models.RiskResult {
+func AnalyzeRisk(req dto.RiskRequest) dto.RiskResult {
 	liquidityCh := make(chan float64, 1)
 	spreadCh := make(chan float64, 1)
 	penaltyCh := make(chan float64, 1)
@@ -20,16 +20,15 @@ func AnalyzeRisk(req models.RiskRequest) models.RiskResult {
 	go func() { concentrationCh <- calcConcentrationRisk(req) }()
 	go func() { ladderCh <- calcLadderScore(req) }()
 
-	return models.RiskResult{
+	return dto.RiskResult{
 		LiquidityScore:      <-liquidityCh,
 		MaturitySpreadScore: <-spreadCh,
 		PenaltyExposure:     <-penaltyCh,
 		ConcentrationRisk:   <-concentrationCh,
 		LadderScore:         <-ladderCh,
-
 	}
 }
-func calcLiquidityScore(req models.RiskRequest) float64 {
+func calcLiquidityScore(req dto.RiskRequest) float64 {
 	if len(req.Fds) == 0 || req.MonthlyExpenses == 0 {
 		return 0
 	}
@@ -52,7 +51,7 @@ func calcLiquidityScore(req models.RiskRequest) float64 {
 
 	return round(math.Min(base+savingsBonus, 100), 2)
 }
-func calcMaturitySpreadScore(req models.RiskRequest) float64 {
+func calcMaturitySpreadScore(req dto.RiskRequest) float64 {
 	if len(req.Fds) == 0 {
 		return 0
 	}
@@ -106,11 +105,11 @@ func calcMaturitySpreadScore(req models.RiskRequest) float64 {
 	return round(math.Min(spreadScore+countBonus, 100), 2)
 }
 
-func calcPenaltyExposure(req models.RiskRequest) float64 {
+func calcPenaltyExposure(req dto.RiskRequest) float64 {
 	return calcPenaltyExposureAt(req, time.Now())
 }
 
-func calcPenaltyExposureAt(req models.RiskRequest, now time.Time) float64 {
+func calcPenaltyExposureAt(req dto.RiskRequest, now time.Time) float64 {
 	if req.MonthlyIncome == 0 {
 		return 100
 	}
@@ -154,7 +153,7 @@ func calcPenaltyExposureAt(req models.RiskRequest, now time.Time) float64 {
 	return round(math.Min(score, 100), 2)
 }
 
-func calcConcentrationRisk(req models.RiskRequest) float64 {
+func calcConcentrationRisk(req dto.RiskRequest) float64 {
 	if len(req.Fds) == 0 {
 		return 0
 	}
@@ -185,7 +184,7 @@ func calcConcentrationRisk(req models.RiskRequest) float64 {
 	return round(math.Min(finalScore, 100), 2)
 }
 
-func calcLadderScore(req models.RiskRequest) float64 {
+func calcLadderScore(req dto.RiskRequest) float64 {
 	if len(req.Fds) == 0 {
 		return 0
 	}
