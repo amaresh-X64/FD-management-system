@@ -1,6 +1,7 @@
 FROM golang:1.22-alpine AS build
 WORKDIR /app
 COPY go.mod ./
+RUN go mod download 
 COPY . .
 RUN go mod tidy && go build -o risk-engine ./main.go
 

@@ -248,7 +248,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 with st.sidebar:
     st.markdown('<p class="section-header">Navigation</p>', unsafe_allow_html=True)
-    page = st.radio("", ["📊 Portfolio Dashboard", "➕ Create User", "💰 Create FD", "🏧 Withdraw FD"],
+    page = st.radio("Navigation", ["📊 Portfolio Dashboard", "➕ Create User", "💰 Create FD", "🏧 Withdraw FD"],
                     label_visibility="collapsed")
 
     st.markdown("---")

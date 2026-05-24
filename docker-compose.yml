@@ -14,7 +14,8 @@ services:
       - fastapi-analytics
     networks:
       - fd-network
-
+    restart: 
+      unless-stopped
   go-risk-engine:
     build: ./go-risk-engine
     container_name: fd-go
@@ -22,6 +23,8 @@ services:
       - "8081:8081"
     networks:
       - fd-network
+    restart: 
+      unless-stopped
 
   fastapi-analytics:
     build: ./fastapi-analytics
@@ -30,6 +33,8 @@ services:
       - "8082:8082"
     networks:
       - fd-network
+    restart: 
+      unless-stopped
 
   streamlit-dashboard:
     build: ./streamlit-dashboard
@@ -40,6 +45,8 @@ services:
       - spring-service
     networks:
       - fd-network
+    restart: 
+      unless-stopped
 
 networks:
   fd-network:
